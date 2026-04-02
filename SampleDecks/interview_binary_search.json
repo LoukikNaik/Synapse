@@ -1,0 +1,615 @@
+{
+  "id": "interview-binary-search",
+  "title": "Binary Search \u2014 Interview Patterns",
+  "description": "Binary search patterns, off-by-one pitfalls, and applications beyond sorted arrays. Covers boundary finding, rotated arrays, and search-on-answer.",
+  "domain": "Data Structures & Algorithms",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "standard-pattern",
+      "name": "Standard Binary Search",
+      "description": "The basic template and its variations (inclusive vs exclusive bounds)"
+    },
+    {
+      "id": "boundary-finding",
+      "name": "Boundary Finding",
+      "description": "Finding first/last occurrence, lower_bound, upper_bound"
+    },
+    {
+      "id": "rotated-array",
+      "name": "Rotated Sorted Array",
+      "description": "Searching in rotated arrays, finding minimum/pivot"
+    },
+    {
+      "id": "search-on-answer",
+      "name": "Binary Search on Answer",
+      "description": "Using binary search on the solution space, not the input"
+    },
+    {
+      "id": "edge-cases",
+      "name": "Edge Cases & Pitfalls",
+      "description": "Off-by-one, overflow, empty input, duplicates"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "bs-s01",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "standard-pattern",
+        "edge-cases"
+      ],
+      "prompt": {
+        "context": "There are three common binary search templates:\n\nA) while lo <= hi (inclusive both ends)\nB) while lo < hi (exclusive right)\nC) while lo + 1 < hi (gap of at least 2)",
+        "question": "What is the key difference that determines which template to use?"
+      },
+      "options": [
+        {
+          "id": "bs-s01-o1",
+          "label": "Template A (lo<=hi) terminates when lo > hi, searching the exact element. Template B (lo<hi) terminates when lo==hi, converging to a boundary. Template C (lo+1<hi) leaves two candidates, useful when you need to check both neighbors.",
+          "description": "A: search for exact match. B: converge to first/last occurrence. C: avoid off-by-one by leaving 2 candidates to check manually."
+        },
+        {
+          "id": "bs-s01-o2",
+          "label": "All three are equivalent \u2014 the choice is purely stylistic",
+          "description": "They produce the same results, just written differently"
+        },
+        {
+          "id": "bs-s01-o3",
+          "label": "Template A is for sorted arrays, B is for rotated arrays, C is for matrices",
+          "description": "Each template is designed for a specific data structure"
+        }
+      ],
+      "correctOptionId": "bs-s01-o1",
+      "explanation": {
+        "reasoning": "Template A (lo<=hi): classic search for a specific value. When the loop ends, lo > hi and the element wasn't found. Template B (lo<hi): converges lo and hi to a single point \u2014 perfect for 'find the first element satisfying a condition.' You shrink the range until one element remains. Template C (lo+1<hi): stops when lo and hi are adjacent, leaving two candidates. You check both post-loop. This avoids tricky boundary updates at the cost of a post-loop check.",
+        "tradeoffs": "Template B is the most versatile for boundary-finding problems. Template A is simplest for basic search. Template C is safest against off-by-one errors but requires manual post-loop handling. Most experienced competitive programmers standardize on one template.",
+        "keyTakeaway": "lo<=hi for exact search. lo<hi for boundary convergence. lo+1<hi for safety when boundaries are confusing. Master one template well rather than memorizing all three.",
+        "commonMistake": "Mixing templates: using lo<=hi with lo=mid (infinite loop when lo==hi==mid). Each template has specific update rules. Don't mix and match."
+      }
+    },
+    {
+      "id": "bs-s02",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "edge-cases"
+      ],
+      "prompt": {
+        "context": "You compute the midpoint as: mid = (lo + hi) / 2",
+        "question": "Why is mid = lo + (hi - lo) / 2 safer?"
+      },
+      "options": [
+        {
+          "id": "bs-s02-o1",
+          "label": "lo + hi can overflow if both are large positive integers. lo + (hi - lo) / 2 avoids the intermediate sum exceeding integer limits.",
+          "description": "For lo = 2 billion and hi = 2 billion, lo + hi overflows a 32-bit integer. But hi - lo is small and safe."
+        },
+        {
+          "id": "bs-s02-o2",
+          "label": "They're mathematically identical and the 'safer' version is just a convention",
+          "description": "Overflow isn't a real concern in modern languages with arbitrary precision integers"
+        },
+        {
+          "id": "bs-s02-o3",
+          "label": "lo + (hi - lo) / 2 is faster because it avoids one addition operation",
+          "description": "The compiler optimizes the subtraction-based form more efficiently"
+        }
+      ],
+      "correctOptionId": "bs-s02-o1",
+      "explanation": {
+        "reasoning": "In languages with fixed-width integers (C, C++, Java), lo + hi can overflow if both are around Integer.MAX_VALUE / 2. For example, lo = 1.5 billion, hi = 2 billion: lo + hi = 3.5 billion, which overflows a signed 32-bit int. The safe form: hi - lo is at most ~500 million (safe), divided by 2, added to lo = safe result. In Python, integers have arbitrary precision so overflow isn't an issue, but it's a good habit.",
+        "tradeoffs": "In Python and JavaScript (BigInt), this doesn't matter. But in Java and C++, it's a real bug. Java also offers Math.floorDiv or >>> operator tricks. Some interviewers specifically check whether you handle this.",
+        "keyTakeaway": "Use mid = lo + (hi - lo) // 2 to avoid integer overflow. Mathematically equivalent to (lo + hi) // 2 but safe for large values.",
+        "commonMistake": "Using (lo + hi) / 2 in Java/C++ where integer overflow silently produces wrong results (negative numbers). Always use the safe form in these languages."
+      }
+    },
+    {
+      "id": "bs-s03",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "boundary-finding"
+      ],
+      "prompt": {
+        "context": "You need to find the FIRST occurrence of target in a sorted array with duplicates. For example, in [1, 2, 2, 2, 3], first occurrence of 2 is index 1.",
+        "question": "When nums[mid] == target, which direction do you move?"
+      },
+      "options": [
+        {
+          "id": "bs-s03-o1",
+          "label": "Move hi = mid (keep mid as a candidate, search left for an earlier occurrence). The first occurrence is at or left of mid.",
+          "description": "Don't return mid immediately \u2014 there might be an earlier occurrence to the left. Shrink the right boundary."
+        },
+        {
+          "id": "bs-s03-o2",
+          "label": "Return mid immediately \u2014 you've found the target",
+          "description": "Any occurrence of target is valid for 'first occurrence'"
+        },
+        {
+          "id": "bs-s03-o3",
+          "label": "Move lo = mid + 1 (search right for the first occurrence)",
+          "description": "The first occurrence must be to the right of any found target"
+        }
+      ],
+      "correctOptionId": "bs-s03-o1",
+      "explanation": {
+        "reasoning": "When nums[mid] == target, mid MIGHT be the first occurrence, but there could be an earlier one to the left. So keep mid as a candidate (hi = mid, not hi = mid - 1) and continue searching left. When the loop converges (lo == hi), it points to the first occurrence. This is the lower_bound / bisect_left pattern.",
+        "tradeoffs": "For the LAST occurrence, do the opposite: when nums[mid] == target, move lo = mid + 1 (search right). After the loop, the last occurrence is at lo - 1. These two patterns (first and last occurrence) are the building blocks for many binary search problems.",
+        "keyTakeaway": "First occurrence: when target found, set hi = mid (search left, keep candidate). Last occurrence: set lo = mid + 1 (search right). Don't return immediately on finding target.",
+        "commonMistake": "Returning immediately when nums[mid] == target. This gives SOME occurrence, not necessarily the FIRST. Must continue searching left to find the earliest."
+      }
+    },
+    {
+      "id": "bs-s04",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "boundary-finding"
+      ],
+      "prompt": {
+        "context": "Search Insert Position (LC 35) / bisect_left: given a sorted array and target, find the index where target would be inserted to keep the array sorted. If target exists, return its first occurrence index.",
+        "question": "What does the final value of lo represent after the binary search loop?"
+      },
+      "options": [
+        {
+          "id": "bs-s04-o1",
+          "label": "lo is the index of the first element >= target (the insertion point). If target exists, it's the first occurrence. If not, it's where target would go.",
+          "description": "The loop converges lo to the leftmost position where nums[lo] >= target. This is exactly bisect_left / lower_bound."
+        },
+        {
+          "id": "bs-s04-o2",
+          "label": "lo is always the index of target if it exists, or -1 if it doesn't",
+          "description": "Binary search returns the exact index or a sentinel value"
+        },
+        {
+          "id": "bs-s04-o3",
+          "label": "lo is the index of the last element < target",
+          "description": "lo converges to the element just before where target belongs"
+        }
+      ],
+      "correctOptionId": "bs-s04-o1",
+      "explanation": {
+        "reasoning": "With the standard lower_bound loop: while lo < hi, if nums[mid] < target, lo = mid + 1, else hi = mid. When the loop ends (lo == hi), lo points to the first element >= target. If nums[lo] == target, it's the first occurrence. If nums[lo] > target, lo is where you'd insert target to maintain sorted order. This is Python's bisect_left and C++'s lower_bound.",
+        "tradeoffs": "bisect_right / upper_bound finds the first element STRICTLY greater than target (the position after the last occurrence). The difference: bisect_left points to the first equal element; bisect_right points past the last equal element. The range [bisect_left, bisect_right) gives all occurrences.",
+        "keyTakeaway": "bisect_left (lower_bound): first index where element >= target. This is the insertion point and the first occurrence if target exists.",
+        "commonMistake": "Confusing bisect_left and bisect_right. bisect_left: first >= target. bisect_right: first > target. For counting occurrences: count = bisect_right - bisect_left."
+      }
+    },
+    {
+      "id": "bs-s05",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "standard-pattern"
+      ],
+      "prompt": {
+        "context": "Find Peak Element (LC 162): an array where nums[i] != nums[i+1] for all i. Find any peak (element greater than both neighbors). nums[-1] = nums[n] = -infinity.",
+        "question": "Why does binary search work on this unsorted array?"
+      },
+      "options": [
+        {
+          "id": "bs-s05-o1",
+          "label": "If nums[mid] < nums[mid+1], a peak must exist on the right (because values rise and must eventually come down since nums[n]=-inf). Similarly for the left. You can always eliminate one half.",
+          "description": "The -infinity boundaries guarantee at least one peak. At mid, the upward direction always leads to a peak \u2014 binary search narrows toward it."
+        },
+        {
+          "id": "bs-s05-o2",
+          "label": "Binary search only works because the array is partially sorted around each peak",
+          "description": "Each peak creates a sorted subarray that binary search can exploit"
+        },
+        {
+          "id": "bs-s05-o3",
+          "label": "Binary search doesn't actually work \u2014 you need linear scan for unsorted arrays",
+          "description": "Only sorted arrays support binary search correctly"
+        }
+      ],
+      "correctOptionId": "bs-s05-o1",
+      "explanation": {
+        "reasoning": "Key insight: if nums[mid] < nums[mid+1], the right side is 'going up.' Since nums[n] = -infinity, the values must come back down at some point \u2014 creating a peak on the right side. So discard the left half (lo = mid + 1). Similarly, if nums[mid] > nums[mid+1], a peak exists on the left or at mid (hi = mid). This isn't about sorted order \u2014 it's about the guarantee that following the upward direction always leads to a peak.",
+        "tradeoffs": "This finds ANY peak, not all peaks. There could be multiple peaks. The binary search takes O(log n). A linear scan would be O(n) but finds all peaks. The binary search works because you only need to find ONE.",
+        "keyTakeaway": "Peak finding works with binary search because the -infinity boundaries guarantee a peak exists in whichever direction values are increasing. You don't need a sorted array \u2014 just the ability to eliminate half the search space.",
+        "commonMistake": "Thinking binary search requires a sorted array. It requires the ability to decide which half to discard. Peak finding, rotated array search, and 'binary search on answer' all work on unsorted data."
+      }
+    },
+    {
+      "id": "bs-s06",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "boundary-finding"
+      ],
+      "prompt": {
+        "context": "First Bad Version (LC 278): versions 1 to n, some point onward all are bad. You have an API isBadVersion(v) that returns true/false. Find the first bad version.",
+        "question": "What type of binary search problem is this?"
+      },
+      "options": [
+        {
+          "id": "bs-s06-o1",
+          "label": "Finding the first True in a boolean array [F, F, F, ..., T, T, T]. Classic lower_bound / boundary search.",
+          "description": "The versions form a sequence like [good, good, ..., bad, bad, bad]. You're finding the transition point \u2014 the first bad version."
+        },
+        {
+          "id": "bs-s06-o2",
+          "label": "Standard search for a specific value in a sorted array",
+          "description": "You're searching for the exact version number that's bad"
+        },
+        {
+          "id": "bs-s06-o3",
+          "label": "This requires linear scan since there's no sorted numeric array to search",
+          "description": "Binary search doesn't apply to boolean predicates"
+        }
+      ],
+      "correctOptionId": "bs-s06-o1",
+      "explanation": {
+        "reasoning": "The versions form a pattern: [good, good, ..., bad, bad, bad]. This is equivalent to [F, F, ..., T, T, T]. Finding the first True is a boundary search: if isBadVersion(mid) is False, the first bad is to the right (lo = mid + 1). If True, it might be mid or earlier (hi = mid). Converges to the first bad version. This is exactly bisect_left on a boolean predicate.",
+        "tradeoffs": "This pattern appears everywhere: 'first day where condition is met', 'minimum speed to finish on time', 'minimum capacity to ship packages.' Any problem with a monotonic predicate [F...F, T...T] is a boundary search.",
+        "keyTakeaway": "First Bad Version = first True in [F,F,...,T,T]. This is the quintessential boundary search pattern. Recognize any monotonic predicate as a binary search opportunity.",
+        "commonMistake": "Not recognizing this as binary search because there's no explicit sorted array. The 'sorted' property is the monotonic predicate: all False then all True."
+      }
+    },
+    {
+      "id": "bs-s07",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "edge-cases"
+      ],
+      "prompt": {
+        "context": "Your binary search is called on an empty array (nums = []).",
+        "question": "What happens with the standard lo <= hi template?"
+      },
+      "options": [
+        {
+          "id": "bs-s07-o1",
+          "label": "lo = 0, hi = -1 (or hi = len-1 = -1). The loop condition lo <= hi is immediately false, so the loop never executes. Return -1 or 'not found' gracefully.",
+          "description": "The standard template handles empty arrays naturally. hi starts at -1, which is already less than lo = 0."
+        },
+        {
+          "id": "bs-s07-o2",
+          "label": "The search crashes with an index-out-of-bounds error",
+          "description": "Accessing nums[mid] on an empty array causes an exception"
+        },
+        {
+          "id": "bs-s07-o3",
+          "label": "The loop runs once and returns the wrong result",
+          "description": "The boundary conditions produce an incorrect mid calculation"
+        }
+      ],
+      "correctOptionId": "bs-s07-o1",
+      "explanation": {
+        "reasoning": "With lo = 0 and hi = len(nums) - 1 = -1: the condition lo <= hi (0 <= -1) is false. The loop body never executes. The function returns -1 (not found) or the appropriate default. No crash, no special case needed. This is one of the nice properties of the lo <= hi template \u2014 it handles empty arrays gracefully.",
+        "tradeoffs": "For the lo < hi template, lo = 0 and hi = 0 (or hi = len): the loop doesn't execute either. All standard templates handle empty input correctly. But it's still good practice to add an early return for clarity.",
+        "keyTakeaway": "Standard binary search templates handle empty arrays gracefully \u2014 the loop condition is immediately false. No special-case code needed, but an explicit check improves readability.",
+        "commonMistake": "Adding unnecessary special-case code for empty arrays when the template already handles it. Or worse: setting hi = len(nums) instead of len(nums) - 1, which breaks the hi = -1 property for empty arrays."
+      }
+    },
+    {
+      "id": "bs-s08",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "edge-cases",
+        "boundary-finding"
+      ],
+      "prompt": {
+        "context": "Your sorted array has duplicates: [1, 2, 2, 2, 2, 3, 4]. You're searching for target = 2 using basic binary search (return immediately when found).",
+        "question": "What problem do duplicates cause?"
+      },
+      "options": [
+        {
+          "id": "bs-s08-o1",
+          "label": "Basic binary search returns SOME index where nums[mid] == 2, but you can't predict which one. For problems needing first/last occurrence, you need the boundary-finding template instead.",
+          "description": "With duplicates, nums[mid] == target at multiple indices. Basic search might return index 2, 3, or 4 nondeterministically."
+        },
+        {
+          "id": "bs-s08-o2",
+          "label": "Duplicates cause binary search to loop infinitely",
+          "description": "The search can't converge when multiple elements match"
+        },
+        {
+          "id": "bs-s08-o3",
+          "label": "Duplicates don't cause any problems \u2014 binary search works identically",
+          "description": "Finding any occurrence is always correct regardless of duplicates"
+        }
+      ],
+      "correctOptionId": "bs-s08-o1",
+      "explanation": {
+        "reasoning": "Basic binary search (return mid when nums[mid] == target) gives you an arbitrary occurrence. For [1,2,2,2,2,3,4], it might return index 3 (the middle 2) rather than the first (index 1) or last (index 4). If the problem needs the first/last occurrence, range, or count of target, you need the boundary-finding templates: set hi=mid to find first, set lo=mid+1 to find last.",
+        "tradeoffs": "For simple 'does target exist?' queries, basic search is fine with duplicates. For 'find first/last occurrence', 'count occurrences' (last - first + 1), or 'find insertion point', use boundary-finding templates.",
+        "keyTakeaway": "Duplicates make basic binary search return an unpredictable index. Use lower_bound/upper_bound templates when you need the first or last occurrence.",
+        "commonMistake": "Assuming basic binary search always returns the first occurrence. It returns whichever mid happens to equal target first, which is arbitrary. Use the boundary template for deterministic results."
+      }
+    },
+    {
+      "id": "bs-s09",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rotated-array"
+      ],
+      "prompt": {
+        "context": "Search in Rotated Sorted Array (LC 33): a sorted array was rotated at some pivot. [0,1,2,4,5,6,7] \u2192 [4,5,6,7,0,1,2]. Search for a target in O(log n).",
+        "question": "What is the key insight that makes binary search work here?"
+      },
+      "options": [
+        {
+          "id": "bs-s09-o1",
+          "label": "At any mid, one half is always sorted. Check if target falls in the sorted half's range \u2014 if yes, search there; if no, search the other half.",
+          "description": "A rotated sorted array always has one fully sorted half. Compare target to the sorted half's boundaries to decide which half to search."
+        },
+        {
+          "id": "bs-s09-o2",
+          "label": "First find the pivot point (minimum element), then binary search the correct half",
+          "description": "A two-step approach: find rotation point, then standard search"
+        },
+        {
+          "id": "bs-s09-o3",
+          "label": "Use modified comparison: treat the rotation as a circular array and adjust mid accordingly",
+          "description": "Map the rotated indices back to the original sorted positions"
+        }
+      ],
+      "correctOptionId": "bs-s09-o1",
+      "explanation": {
+        "reasoning": "In a rotated sorted array, if you pick any mid: either [lo, mid] is sorted or [mid, hi] is sorted (at least one must be). If [lo, mid] is sorted (nums[lo] <= nums[mid]): check if target is in [nums[lo], nums[mid]]. If yes, search left (hi = mid - 1). If no, search right (lo = mid + 1). Otherwise [mid, hi] is sorted: check if target is in [nums[mid], nums[hi]]. This always eliminates half the array.",
+        "tradeoffs": "The two-step approach (find pivot, then search) also works and is arguably cleaner to understand, but requires two binary searches. The single-pass approach is more elegant and what most interviewers expect.",
+        "keyTakeaway": "Rotated array search: one half is always sorted. Check if target falls in the sorted half's range to decide direction. Single-pass O(log n).",
+        "commonMistake": "Forgetting to use <= (not <) when checking if the left half is sorted: nums[lo] <= nums[mid]. The = handles the case when lo == mid (two elements remaining)."
+      }
+    },
+    {
+      "id": "bs-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "rotated-array"
+      ],
+      "prompt": {
+        "context": "Find Minimum in Rotated Sorted Array (LC 153): find the minimum element in a rotated sorted array with no duplicates.",
+        "question": "What do you compare nums[mid] against?"
+      },
+      "options": [
+        {
+          "id": "bs-s10-o1",
+          "label": "Compare nums[mid] with nums[hi]. If nums[mid] > nums[hi], the min is in the right half. If nums[mid] <= nums[hi], the min is in the left half (including mid).",
+          "description": "Comparing with hi tells you which side of the rotation point mid is on. The minimum is at the rotation point."
+        },
+        {
+          "id": "bs-s10-o2",
+          "label": "Compare nums[mid] with nums[lo]. If nums[mid] > nums[lo], search left.",
+          "description": "The left boundary tells you where the minimum is"
+        },
+        {
+          "id": "bs-s10-o3",
+          "label": "Compare nums[mid] with nums[0]. The first element determines the rotation.",
+          "description": "The original first element anchors the search"
+        }
+      ],
+      "correctOptionId": "bs-s10-o1",
+      "explanation": {
+        "reasoning": "Compare mid to hi (not lo). If nums[mid] > nums[hi], the array is 'broken' between mid and hi \u2014 the minimum (rotation point) is in the right half (lo = mid + 1). If nums[mid] <= nums[hi], the right half is sorted and the minimum could be at mid or in the left half (hi = mid). Comparing with lo is tricky because when the array isn't rotated at all (already sorted), nums[mid] > nums[lo] but the min is at lo \u2014 comparing with lo doesn't distinguish this case cleanly.",
+        "tradeoffs": "Comparing with hi works cleanly. Comparing with lo requires extra case handling for the unrotated array. This is a subtle but important implementation detail.",
+        "keyTakeaway": "Find min in rotated array: compare nums[mid] with nums[hi]. mid > hi \u2192 min on right. mid <= hi \u2192 min on left (including mid).",
+        "commonMistake": "Comparing with nums[lo] instead of nums[hi]. The lo comparison fails for unrotated arrays and requires special casing."
+      }
+    },
+    {
+      "id": "bs-s11",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rotated-array",
+        "edge-cases"
+      ],
+      "prompt": {
+        "context": "Find Minimum in Rotated Sorted Array II (LC 154): same as above, but the array can have DUPLICATES. Example: [2, 2, 2, 0, 1, 2].",
+        "question": "What happens when nums[mid] == nums[hi], and what's the worst case?"
+      },
+      "options": [
+        {
+          "id": "bs-s11-o1",
+          "label": "When nums[mid] == nums[hi], you can't determine which side the min is on. Shrink hi by 1 (hi -= 1). Worst case: all elements equal except one \u2014 O(n).",
+          "description": "Example: [2,2,2,0,2,2,2]. mid == hi == 2, but min is on the left. You can only safely shrink by one. If all same except one, every step only removes one element."
+        },
+        {
+          "id": "bs-s11-o2",
+          "label": "Duplicates don't affect the algorithm \u2014 the same O(log n) approach works",
+          "description": "The comparison logic handles duplicates without modification"
+        },
+        {
+          "id": "bs-s11-o3",
+          "label": "When nums[mid] == nums[hi], set lo = mid + 1 to break the tie",
+          "description": "Moving lo forward resolves the ambiguity"
+        }
+      ],
+      "correctOptionId": "bs-s11-o1",
+      "explanation": {
+        "reasoning": "When nums[mid] == nums[hi], you can't determine which side has the minimum. [2,2,2,0,2]: min is on the left. [2,0,2,2,2]: min is also findable. The safe action: hi -= 1. This removes one element from consideration without risking skipping the minimum (if nums[hi] == nums[mid], removing hi doesn't lose the minimum value since mid still has it). Worst case: array like [1,1,1,...,1,0,1,...,1,1] \u2014 every step is hi -= 1, giving O(n).",
+        "tradeoffs": "This O(n) worst case is unavoidable with duplicates \u2014 consider [1,1,1,...,0,...,1,1,1]. Without examining most elements, you can't locate the 0. The duplicates destroy the O(log n) guarantee. Without duplicates, the algorithm is always O(log n).",
+        "keyTakeaway": "Duplicates in rotated array: when nums[mid] == nums[hi], shrink hi by 1. Worst case degrades to O(n). This is unavoidable \u2014 duplicates destroy the ability to eliminate half the array.",
+        "commonMistake": "Setting lo = mid + 1 when nums[mid] == nums[hi] \u2014 this can skip the minimum. The safe move is hi -= 1 (shrink from the right, preserving the mid value)."
+      }
+    },
+    {
+      "id": "bs-s12",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "search-on-answer"
+      ],
+      "prompt": {
+        "context": "Koko Eating Bananas (LC 875): Koko has n piles of bananas. She can eat at speed k bananas/hour (one pile per hour, rounds up). Guards return in h hours. Find the minimum k so she can eat all bananas in h hours.",
+        "question": "What is the 'search space' and how do you verify a candidate answer?"
+      },
+      "options": [
+        {
+          "id": "bs-s12-o1",
+          "label": "Search space: k from 1 to max(piles). For each candidate k, check if sum(ceil(pile/k) for each pile) <= h. Binary search for the minimum k that satisfies this.",
+          "description": "The answer space is monotonic: if speed k works, any speed > k also works. Binary search finds the minimum working speed."
+        },
+        {
+          "id": "bs-s12-o2",
+          "label": "Search space: k from 1 to sum(piles). Try each speed linearly.",
+          "description": "The search space is the total number of bananas"
+        },
+        {
+          "id": "bs-s12-o3",
+          "label": "Sort the piles and use binary search to find the optimal pile to eat first",
+          "description": "Binary search on the pile ordering determines eating strategy"
+        }
+      ],
+      "correctOptionId": "bs-s12-o1",
+      "explanation": {
+        "reasoning": "Binary search on the answer: the speed k ranges from 1 (minimum) to max(piles) (can eat any pile in one hour). For each candidate k, check feasibility: total hours = sum(ceil(pile / k)) for each pile. If total <= h, k is fast enough (might be faster than needed \u2014 search lower). If total > h, k is too slow (search higher). The feasibility function is monotonic: faster speed always needs fewer hours. Binary search finds the minimum k.",
+        "tradeoffs": "Verification is O(n) per candidate, binary search does O(log(max(piles))) iterations, so total is O(n * log(max(piles))). This is much better than trying every speed linearly (O(n * max(piles))).",
+        "keyTakeaway": "Binary search on answer: search space is [1, max(piles)], verify each candidate in O(n). The key insight is that the feasibility function is monotonic \u2014 if k works, k+1 also works.",
+        "commonMistake": "Using ceil division incorrectly. In Python: ceil(a/b) = (a + b - 1) // b or math.ceil(a / b). Integer division truncates, so you need to round up."
+      }
+    },
+    {
+      "id": "bs-s13",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "search-on-answer"
+      ],
+      "prompt": {
+        "context": "Capacity To Ship Packages Within D Days (LC 1011): packages with given weights must be shipped in order within D days. A ship loads packages sequentially until hitting the weight capacity, then starts a new day. Find the minimum ship capacity.",
+        "question": "What is the search space for binary search on the answer?"
+      },
+      "options": [
+        {
+          "id": "bs-s13-o1",
+          "label": "lo = max(weights) (must fit the heaviest package), hi = sum(weights) (ship everything in one day). Binary search for the minimum capacity where days needed <= D.",
+          "description": "The ship must hold at least the heaviest package (lower bound). At most, ship everything at once (upper bound). Feasibility check: greedily load packages and count days."
+        },
+        {
+          "id": "bs-s13-o2",
+          "label": "lo = 1, hi = max(weights). Search for the optimal single-package capacity.",
+          "description": "The capacity only needs to handle individual packages"
+        },
+        {
+          "id": "bs-s13-o3",
+          "label": "lo = sum(weights)/D, hi = sum(weights). Even split gives the lower bound.",
+          "description": "The minimum capacity is the average load per day"
+        }
+      ],
+      "correctOptionId": "bs-s13-o1",
+      "explanation": {
+        "reasoning": "Lower bound: the ship must be able to carry the heaviest single package, so lo = max(weights). Upper bound: if the ship carries everything, hi = sum(weights) (1 day). For a candidate capacity, greedily load packages in order: add each package to the current day's load; if it exceeds capacity, start a new day. Count total days. If days <= D, the capacity is sufficient (search lower). If days > D, capacity is too small (search higher).",
+        "tradeoffs": "The greedy verification is O(n) per candidate. Binary search over [max(weights), sum(weights)] is O(log(sum - max)). Total: O(n * log(sum)). The key insight is that packages must be shipped in order \u2014 this makes the greedy approach optimal for verification.",
+        "keyTakeaway": "Ship capacity search space: [max(weights), sum(weights)]. Verify by greedily loading in order and counting days. Classic binary search on answer with monotonic feasibility.",
+        "commonMistake": "Setting lo = 1 instead of max(weights). A capacity less than the heaviest package can never work \u2014 it can't even load that one package."
+      }
+    },
+    {
+      "id": "bs-s14",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "search-on-answer"
+      ],
+      "prompt": {
+        "context": "Split Array Largest Sum (LC 410): split an array into m contiguous subarrays to minimize the largest subarray sum. For example, [7,2,5,10,8] with m=2: optimal split is [7,2,5] and [10,8], largest sum = 18.",
+        "question": "How does binary search on the answer work here?"
+      },
+      "options": [
+        {
+          "id": "bs-s14-o1",
+          "label": "Binary search on the answer (the largest sum). lo = max(nums), hi = sum(nums). For each candidate max_sum, greedily check if you can split into <= m subarrays where no subarray exceeds max_sum.",
+          "description": "If you can split into <= m parts with max_sum limit, the answer is at most max_sum. Binary search finds the minimum such limit."
+        },
+        {
+          "id": "bs-s14-o2",
+          "label": "Dynamic programming on all possible split points \u2014 binary search doesn't apply here",
+          "description": "This is a DP problem, not a binary search problem"
+        },
+        {
+          "id": "bs-s14-o3",
+          "label": "Binary search on the split positions to find the optimal m-1 cut points",
+          "description": "Search for where to place the dividers between subarrays"
+        }
+      ],
+      "correctOptionId": "bs-s14-o1",
+      "explanation": {
+        "reasoning": "Binary search on the maximum subarray sum. lo = max(nums) (can't do better than the largest single element). hi = sum(nums) (one subarray). For candidate max_sum: greedily scan left to right, accumulating sum. When adding the next element would exceed max_sum, start a new subarray. Count total subarrays. If count <= m, max_sum is feasible (try smaller). If count > m, max_sum is too tight (try larger). Monotonic: larger max_sum \u2192 fewer subarrays needed.",
+        "tradeoffs": "DP solution exists (O(n^2 * m)) but binary search is O(n * log(sum - max)) \u2014 much faster. This problem is structurally identical to the shipping packages problem, just with different framing.",
+        "keyTakeaway": "Split array largest sum = binary search on the answer (the max sum). Verify greedily: can you split into <= m parts without exceeding the candidate sum? Same pattern as shipping packages.",
+        "commonMistake": "Not recognizing this as the same pattern as Koko's bananas and ship capacity. All three are 'minimize the maximum' with binary search on the answer and greedy verification."
+      }
+    },
+    {
+      "id": "bs-s15",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "standard-pattern"
+      ],
+      "prompt": {
+        "context": "Median of Two Sorted Arrays (LC 4): find the median of two sorted arrays in O(log(min(m,n))) time. Arrays: nums1 of size m, nums2 of size n.",
+        "question": "What are you binary searching on?"
+      },
+      "options": [
+        {
+          "id": "bs-s15-o1",
+          "label": "Binary search on the partition position in the smaller array. You partition both arrays so that the left halves together have (m+n+1)/2 elements. Check if the partition is valid (max of left <= min of right).",
+          "description": "If you choose i elements from nums1's left half, you need j = (m+n+1)/2 - i from nums2. Binary search on i to find the valid partition."
+        },
+        {
+          "id": "bs-s15-o2",
+          "label": "Merge both arrays and find the middle element with binary search",
+          "description": "Merging and then searching gives O(m+n), but binary search can speed up the merge"
+        },
+        {
+          "id": "bs-s15-o3",
+          "label": "Binary search for the median value itself in the range [min, max]",
+          "description": "Search for the actual median number using both arrays for counting"
+        }
+      ],
+      "correctOptionId": "bs-s15-o1",
+      "explanation": {
+        "reasoning": "Binary search on partition index i in the smaller array (ensure you search the smaller one for O(log(min(m,n)))). If i elements come from nums1's left half, then j = (m+n+1)/2 - i come from nums2's left half. The partition is valid when: nums1[i-1] <= nums2[j] AND nums2[j-1] <= nums1[i] (max of left halves <= min of right halves). Binary search adjusts i until this condition holds. Then the median is derived from the boundary elements.",
+        "tradeoffs": "This is one of the hardest binary search problems. The key insight is that a valid partition splits all elements into two halves: left half contains the smaller (m+n)/2 elements. The binary search finds where to split the smaller array.",
+        "keyTakeaway": "Median of two sorted arrays: binary search on partition position in the smaller array. Ensure left partition max <= right partition min. O(log(min(m,n))).",
+        "commonMistake": "Binary searching on the larger array \u2014 gives O(log(max(m,n))) instead of O(log(min(m,n))). Always search the smaller array. Also: handle edge cases where i=0 or i=m (partition at the boundaries)."
+      }
+    },
+    {
+      "id": "bs-s16",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "search-on-answer"
+      ],
+      "prompt": {
+        "context": "You're stuck on a problem and wondering whether binary search on the answer applies.",
+        "question": "What two conditions must hold for 'binary search on the answer' to work?"
+      },
+      "options": [
+        {
+          "id": "bs-s16-o1",
+          "label": "1) The answer space has a clear range [lo, hi]. 2) There is a monotonic feasibility function: if answer x works, then all answers > x (or < x) also work. This lets you binary search for the boundary.",
+          "description": "You need bounded search space + monotonic 'can I achieve this?' predicate. Binary search finds the threshold."
+        },
+        {
+          "id": "bs-s16-o2",
+          "label": "The input array must be sorted and the answer must be an element of the array",
+          "description": "Binary search on answer only works when searching within the input data"
+        },
+        {
+          "id": "bs-s16-o3",
+          "label": "The problem must have exactly one correct answer with no ties",
+          "description": "Binary search on answer requires unique solutions"
+        }
+      ],
+      "correctOptionId": "bs-s16-o1",
+      "explanation": {
+        "reasoning": "Binary search on the answer requires: (1) A bounded search space \u2014 you know the minimum and maximum possible answer values. (2) A monotonic predicate \u2014 for a candidate answer x, you can determine feasibility in polynomial time, and the predicate has a clean transition from feasible to infeasible (or vice versa). If x is feasible, then x+1 is also feasible (or vice versa). This monotonicity lets binary search find the exact boundary.",
+        "tradeoffs": "Pattern recognition: 'minimize the maximum' or 'maximize the minimum' problems are almost always binary search on the answer. The verification (feasibility check) is usually a greedy O(n) scan. Total time: O(n * log(answer_range)).",
+        "keyTakeaway": "Binary search on answer needs: bounded range + monotonic feasibility. Think 'minimize the maximum' or 'maximize the minimum.' The feasibility check should be O(n) or O(n log n).",
+        "commonMistake": "Not recognizing when to apply this technique. If you see 'minimize the maximum of X' or 'find the minimum Y such that condition holds', think binary search on the answer first."
+      }
+    }
+  ]
+}

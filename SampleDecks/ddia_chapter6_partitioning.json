@@ -1,0 +1,1603 @@
+{
+  "id": "ddia-ch6-partitioning",
+  "title": "DDIA Ch.6: Partitioning",
+  "description": "Exhaustive decision scenarios from Designing Data-Intensive Applications Chapter 6 \u2014 Partitioning (Sharding). Covers key-range and hash partitioning; hot spots and skew; document-partitioned vs term-partitioned secondary indexes; rebalancing strategies; request routing and service discovery.",
+  "domain": "distributed-systems",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "partitioning-basics",
+      "name": "Partitioning Fundamentals",
+      "description": "Splitting a large dataset across multiple nodes (partitions/shards) so that data and query load are spread evenly. Each partition is a small database in its own right. Partitioning is usually combined with replication for fault tolerance."
+    },
+    {
+      "id": "key-range",
+      "name": "Key Range Partitioning",
+      "description": "Assigning a continuous range of keys to each partition, like volumes of an encyclopedia. Enables efficient range scans but risks hot spots if keys are not evenly distributed (e.g., timestamps)."
+    },
+    {
+      "id": "hash-partitioning",
+      "name": "Hash Partitioning",
+      "description": "Using a hash function on the key to determine the partition. Distributes keys evenly regardless of data patterns, but destroys key ordering \u2014 range queries become inefficient. Each partition owns a range of hash values."
+    },
+    {
+      "id": "hot-spots",
+      "name": "Skewed Workloads & Hot Spots",
+      "description": "When partitioning doesn't distribute load evenly: certain keys receive disproportionate traffic (celebrity problem). Hash partitioning helps with data skew but can't eliminate hot keys. Application-level mitigation is often required."
+    },
+    {
+      "id": "secondary-indexes-local",
+      "name": "Document-Partitioned (Local) Secondary Indexes",
+      "description": "Each partition maintains its own secondary index covering only the data in that partition. Writes are local but reads by secondary index require scatter/gather across all partitions."
+    },
+    {
+      "id": "secondary-indexes-global",
+      "name": "Term-Partitioned (Global) Secondary Indexes",
+      "description": "A global secondary index partitioned separately from the data \u2014 by term value or hash of term. Reads are efficient (single partition) but writes must update multiple partitions, so updates are usually asynchronous."
+    },
+    {
+      "id": "rebalancing",
+      "name": "Rebalancing Partitions",
+      "description": "Moving data between nodes as the cluster grows, shrinks, or becomes unbalanced. Strategies: fixed partition count, dynamic splitting/merging, proportional to nodes. Key pitfall: hash mod N moves almost all data on resize."
+    },
+    {
+      "id": "request-routing",
+      "name": "Request Routing & Service Discovery",
+      "description": "How clients find which node holds a given partition. Approaches: allow any node to forward (gossip-based), use a routing tier (ZooKeeper-aware proxy), or make the client partition-aware. This is a form of consensus/coordination."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "ch6-s01",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "partitioning-basics"
+      ],
+      "prompt": {
+        "context": "Your database has grown to 10 TB and handles 50,000 queries/sec. A single machine can store 2 TB and handle 10,000 queries/sec.",
+        "question": "What is the primary reason to partition (shard) the data?"
+      },
+      "options": [
+        {
+          "id": "ch6-s01-o1",
+          "label": "Scalability \u2014 spread data and query load across multiple machines",
+          "description": "No single machine can hold all the data or handle all the queries"
+        },
+        {
+          "id": "ch6-s01-o2",
+          "label": "Fault tolerance \u2014 if one machine fails, others have copies",
+          "description": "Partitioning protects against data loss"
+        },
+        {
+          "id": "ch6-s01-o3",
+          "label": "Faster single queries \u2014 partitions make individual reads faster",
+          "description": "Splitting data makes each query touch less data"
+        }
+      ],
+      "correctOptionId": "ch6-s01-o1",
+      "explanation": {
+        "reasoning": "The primary reason for partitioning is scalability: when a dataset is too large for a single machine, or the query throughput exceeds what one machine can handle, you split the data across multiple nodes. Each partition is a 'small database' that handles a fraction of the total load. Fault tolerance is handled by replication, not partitioning.",
+        "tradeoffs": "Partitioning adds complexity: cross-partition queries, rebalancing, routing. It's usually combined with replication so each partition is stored on multiple nodes. But partitioning itself is about scalability, while replication is about fault tolerance.",
+        "keyTakeaway": "Partitioning is primarily about scalability \u2014 distributing data and query load across multiple machines when a single machine is insufficient.",
+        "commonMistake": "Confusing partitioning with replication. Partitioning spreads data across nodes for scalability. Replication copies data across nodes for fault tolerance. They are orthogonal and usually used together."
+      }
+    },
+    {
+      "id": "ch6-s02",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "partitioning-basics"
+      ],
+      "prompt": {
+        "context": "You have a database with 6 partitions and 3 nodes. Each partition is replicated to 2 nodes for fault tolerance.\n\nNode 1: Partitions A(leader), B(leader), C(follower), D(follower)\nNode 2: Partitions C(leader), D(leader), A(follower), E(follower)\nNode 3: Partitions E(leader), F(leader), B(follower), F(follower)",
+        "question": "How does partitioning combine with replication?"
+      },
+      "options": [
+        {
+          "id": "ch6-s02-o1",
+          "label": "Each partition is replicated across multiple nodes \u2014 a node is leader for some partitions and follower for others",
+          "description": "Partitioning and replication are orthogonal: each partition uses leader-follower replication independently"
+        },
+        {
+          "id": "ch6-s02-o2",
+          "label": "Each node stores a complete copy of all partitions",
+          "description": "Every node has all data for maximum redundancy"
+        },
+        {
+          "id": "ch6-s02-o3",
+          "label": "Partitions are split further into sub-partitions for replication",
+          "description": "Replication works within partitions by splitting them smaller"
+        }
+      ],
+      "correctOptionId": "ch6-s02-o1",
+      "explanation": {
+        "reasoning": "Partitioning and replication are combined but independent concerns. Each partition is replicated to multiple nodes using leader-follower (or leaderless) replication. A single node stores several partitions, acting as leader for some and follower for others. The choice of partitioning scheme is mostly independent of the replication scheme.",
+        "tradeoffs": "This means each node plays multiple roles simultaneously. The complexity of replication (Chapter 5) applies to each partition independently. When a node fails, its leader partitions must failover to followers on other nodes, and its follower partitions lose a replica.",
+        "keyTakeaway": "Partitioning and replication are orthogonal: each partition is replicated independently, and each node is leader for some partitions and follower for others.",
+        "commonMistake": "Thinking partitioning and replication are the same thing or mutually exclusive. They solve different problems (scalability vs fault tolerance) and are almost always used together."
+      }
+    },
+    {
+      "id": "ch6-s03",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "partitioning-basics"
+      ],
+      "prompt": {
+        "context": "You partition your e-commerce database across 10 nodes. After partitioning, you discover that 80% of all queries hit node 3 (which stores product catalog data for popular categories), while the other 9 nodes are mostly idle.",
+        "question": "What is this problem called?"
+      },
+      "options": [
+        {
+          "id": "ch6-s03-o1",
+          "label": "Skew \u2014 the partitioning is unfair, creating a hot spot on node 3",
+          "description": "The data or query load is not evenly distributed across partitions"
+        },
+        {
+          "id": "ch6-s03-o2",
+          "label": "Replication lag \u2014 node 3 is behind the other nodes",
+          "description": "The node is overloaded because it's catching up on replication"
+        },
+        {
+          "id": "ch6-s03-o3",
+          "label": "Split brain \u2014 node 3 is acting as an independent leader",
+          "description": "The node has disconnected from the cluster"
+        }
+      ],
+      "correctOptionId": "ch6-s03-o1",
+      "explanation": {
+        "reasoning": "When partitioning is unfair \u2014 some partitions get more data or queries than others \u2014 it's called skew. A partition with disproportionately high load is called a hot spot. Skew defeats the purpose of partitioning: in the worst case, all load ends up on one node, making it no better than having no partitioning at all.",
+        "tradeoffs": "The goal of partitioning is to spread data and queries evenly. The choice of partitioning scheme (key-range, hash, etc.) directly affects how prone the system is to skew. No partitioning scheme can completely eliminate skew, but some are much better than others for specific workloads.",
+        "keyTakeaway": "Skew means unfairly distributed load across partitions. A partition with disproportionately high load is a hot spot. Effective partitioning minimizes skew.",
+        "commonMistake": "Assuming that partitioning automatically distributes load evenly. The partitioning strategy must be chosen carefully based on the data and access patterns \u2014 a poor choice can make one partition a bottleneck."
+      }
+    },
+    {
+      "id": "ch6-s04",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "partitioning-basics"
+      ],
+      "prompt": {
+        "context": "Your team debates whether to use partitioning or replication to handle their scaling needs:\n\nEngineer A: 'Let's add more read replicas to handle the query load.'\nEngineer B: 'Let's partition the data across more nodes.'\n\nThe database is 500 GB, the workload is 70% reads / 30% writes, and both read and write throughput are at capacity on the current single node.",
+        "question": "Which approach addresses BOTH the read and write throughput bottleneck?"
+      },
+      "options": [
+        {
+          "id": "ch6-s04-o1",
+          "label": "Partitioning \u2014 it distributes both reads AND writes across nodes",
+          "description": "Each partition handles a fraction of all traffic, including writes"
+        },
+        {
+          "id": "ch6-s04-o2",
+          "label": "Read replicas \u2014 they scale read throughput without changing the write path",
+          "description": "Adding followers scales reads; writes still go to the leader"
+        },
+        {
+          "id": "ch6-s04-o3",
+          "label": "Both are equivalent for this workload",
+          "description": "Either approach solves both problems"
+        }
+      ],
+      "correctOptionId": "ch6-s04-o1",
+      "explanation": {
+        "reasoning": "Read replicas only scale read throughput \u2014 all writes still go to a single leader. If writes are also at capacity (30% of a saturated workload), adding read replicas won't help with write throughput. Partitioning distributes both reads AND writes across nodes, since each partition has its own leader for its subset of data.",
+        "tradeoffs": "In practice, you'd likely use both: partition to spread writes, and replicate each partition for read scaling and fault tolerance. But if writes are the bottleneck, only partitioning helps \u2014 replication alone cannot scale write throughput in a single-leader setup.",
+        "keyTakeaway": "Partitioning scales both read and write throughput by distributing data across nodes. Replication (read replicas) only scales reads \u2014 writes still bottleneck at the leader.",
+        "commonMistake": "Trying to scale write throughput with read replicas. Adding followers doesn't help writes \u2014 the single leader is still the write bottleneck. Partitioning (or multi-leader replication) is needed to scale writes."
+      }
+    },
+    {
+      "id": "ch6-s05",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "partitioning-basics"
+      ],
+      "prompt": {
+        "context": "After partitioning your database, a developer writes a query:\n\nSELECT * FROM orders WHERE customer_id = 42 AND status = 'pending'\n\nOrders are partitioned by customer_id. The query planner can determine that customer 42's data is on partition 3.",
+        "question": "What makes this query efficient on a partitioned database?"
+      },
+      "options": [
+        {
+          "id": "ch6-s05-o1",
+          "label": "The query includes the partition key \u2014 it targets a single partition",
+          "description": "Since customer_id is the partition key, the system routes directly to partition 3"
+        },
+        {
+          "id": "ch6-s05-o2",
+          "label": "The query has two filter conditions, reducing the result set",
+          "description": "Multiple WHERE clauses make any query fast"
+        },
+        {
+          "id": "ch6-s05-o3",
+          "label": "Partitioned databases automatically parallelize all queries",
+          "description": "The query runs on all partitions simultaneously"
+        }
+      ],
+      "correctOptionId": "ch6-s05-o1",
+      "explanation": {
+        "reasoning": "When a query includes the partition key, the system can route it directly to the single partition that holds the data \u2014 no need to contact other partitions. This is the most efficient query pattern on a partitioned database. Without the partition key, the query must scatter to all partitions and gather results.",
+        "tradeoffs": "Queries that don't include the partition key (e.g., SELECT * FROM orders WHERE status = 'pending') must be sent to ALL partitions (scatter/gather), which is much less efficient. This is why partition key choice is critical \u2014 it should match the most common query patterns.",
+        "keyTakeaway": "Queries that include the partition key are routed to a single partition \u2014 maximally efficient. Queries without the partition key require scatter/gather across all partitions.",
+        "commonMistake": "Choosing a partition key that doesn't match query patterns. If most queries filter by a field that ISN'T the partition key, every query becomes a scatter/gather operation."
+      }
+    },
+    {
+      "id": "ch6-s06",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "You're designing a sensor data platform. Queries frequently request data for a specific sensor over a time range:\n\nSELECT * FROM readings WHERE sensor_id = 'temp-42' AND timestamp BETWEEN '2024-01-01' AND '2024-01-31'\n\nYou need to choose a partitioning strategy.",
+        "question": "Which partitioning scheme supports this range query efficiently?"
+      },
+      "options": [
+        {
+          "id": "ch6-s06-o1",
+          "label": "Key-range partitioning on a compound key (sensor_id, timestamp)",
+          "description": "Partitions hold sorted ranges of keys \u2014 range scans within a partition are efficient"
+        },
+        {
+          "id": "ch6-s06-o2",
+          "label": "Hash partitioning on timestamp",
+          "description": "Hash distributes timestamps evenly across partitions"
+        },
+        {
+          "id": "ch6-s06-o3",
+          "label": "Hash partitioning on sensor_id",
+          "description": "Each sensor's data lands on one partition"
+        }
+      ],
+      "correctOptionId": "ch6-s06-o1",
+      "explanation": {
+        "reasoning": "Key-range partitioning keeps keys in sorted order within each partition. With a compound key (sensor_id, timestamp), all readings for one sensor are on the same partition AND sorted by time \u2014 so range scans over a time window are efficient sequential reads. Hash partitioning would scatter timestamps randomly, destroying the ability to do efficient range scans.",
+        "tradeoffs": "Key-range partitioning enables efficient range queries but can lead to hot spots if certain key ranges receive more traffic. Hash partitioning distributes evenly but loses sort order. The compound key approach (used by HBase and Cassandra) gives you the best of both in many cases.",
+        "keyTakeaway": "Key-range partitioning preserves sort order within partitions, enabling efficient range scans. It's ideal when queries frequently request contiguous ranges of keys.",
+        "commonMistake": "Using hash partitioning when range queries are important. Hashing destroys key order \u2014 a range scan becomes a full scatter/gather across all partitions."
+      }
+    },
+    {
+      "id": "ch6-s07",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "You use key-range partitioning on your sensor platform, partitioned by timestamp. Millions of sensors report data every second.\n\nPartition boundaries are by day:\n- Partition 1: Jan 1\n- Partition 2: Jan 2\n- ...\n\nAll sensors are writing data for today.",
+        "question": "What problem does this create?"
+      },
+      "options": [
+        {
+          "id": "ch6-s07-o1",
+          "label": "Today's partition is a hot spot \u2014 all writes go to one partition while older partitions sit idle",
+          "description": "All current writes have today's timestamp, concentrating on a single partition"
+        },
+        {
+          "id": "ch6-s07-o2",
+          "label": "Data loss \u2014 old partitions may be garbage collected",
+          "description": "The system removes older partitions to save space"
+        },
+        {
+          "id": "ch6-s07-o3",
+          "label": "Read latency increases \u2014 the current partition grows too large",
+          "description": "Having all today's data in one partition slows down reads"
+        }
+      ],
+      "correctOptionId": "ch6-s07-o1",
+      "explanation": {
+        "reasoning": "With key-range partitioning by timestamp, ALL writes for the current time period go to the same partition \u2014 creating a massive hot spot. Today's partition handles all write traffic while older partitions are idle. This is the classic key-range partitioning pitfall with monotonically increasing keys like timestamps.",
+        "tradeoffs": "The fix is to use a compound key: prefix the timestamp with something that distributes writes, like sensor_id. Partition by (sensor_id, timestamp) so each sensor's data lands on a different partition based on sensor_id, but within that partition, data is sorted by timestamp for efficient range scans.",
+        "keyTakeaway": "Key-range partitioning with monotonically increasing keys (timestamps, auto-increment IDs) creates hot spots \u2014 all writes concentrate on one partition. Use a compound key to distribute writes.",
+        "commonMistake": "Partitioning directly by timestamp without a distributing prefix. This is a textbook hot spot pattern that affects virtually every time-series database using naive key-range partitioning."
+      }
+    },
+    {
+      "id": "ch6-s08",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "To fix the timestamp hot spot, you change the partition key from timestamp to a compound key: (sensor_id, timestamp). Now each sensor's data lands on a partition based on sensor_id, sorted by timestamp within.\n\nA query requests: all readings from ALL sensors for the last hour.",
+        "question": "What is the trade-off of this compound key approach?"
+      },
+      "options": [
+        {
+          "id": "ch6-s08-o1",
+          "label": "Cross-sensor time range queries must scatter to all partitions \u2014 each sensor is on a different partition",
+          "description": "A query for 'all sensors in the last hour' can't be routed to a single partition"
+        },
+        {
+          "id": "ch6-s08-o2",
+          "label": "No trade-off \u2014 the compound key handles all query patterns efficiently",
+          "description": "Compound keys optimize both sensor-specific and cross-sensor queries"
+        },
+        {
+          "id": "ch6-s08-o3",
+          "label": "The compound key uses too much storage space",
+          "description": "Longer keys increase storage overhead significantly"
+        }
+      ],
+      "correctOptionId": "ch6-s08-o1",
+      "explanation": {
+        "reasoning": "With (sensor_id, timestamp) as the partition key, queries for one sensor's time range are efficient (single partition, sorted by time). But queries across ALL sensors for a time range must scatter to every partition \u2014 each partition has a different sensor's data. You've traded hot-spot writes for cross-sensor scatter/gather reads.",
+        "tradeoffs": "This is a fundamental tension in partitioning: optimizing for one access pattern often hurts another. The compound key approach is best when per-sensor queries dominate. If cross-sensor time-range queries are frequent, you might need a different strategy (e.g., partitioning by time with multiple partitions per time range).",
+        "keyTakeaway": "Compound partition keys solve hot spots but create scatter/gather for queries that don't include the first part of the key. Partition key design must match the dominant query pattern.",
+        "commonMistake": "Assuming compound keys solve all access patterns. They optimize queries that include the first component of the key but hurt queries that only filter on later components."
+      }
+    },
+    {
+      "id": "ch6-s09",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "In key-range partitioning, partition boundaries must be set. For a dataset of user names (A-Z), you could set boundaries statically:\n\nPartition 1: A-F, Partition 2: G-L, Partition 3: M-R, Partition 4: S-Z\n\nBut if most users have names starting with S-T, partition 4 will be much larger than the others.",
+        "question": "How do databases like HBase handle this?"
+      },
+      "options": [
+        {
+          "id": "ch6-s09-o1",
+          "label": "Boundaries adapt automatically \u2014 partitions split when they get too large",
+          "description": "Like B-trees: when a partition exceeds a size threshold, it splits into two with a new boundary"
+        },
+        {
+          "id": "ch6-s09-o2",
+          "label": "Boundaries are always set manually by the administrator",
+          "description": "Only humans can choose good partition boundaries"
+        },
+        {
+          "id": "ch6-s09-o3",
+          "label": "Boundaries are recomputed nightly using a batch job",
+          "description": "A scheduled process redistributes boundaries based on data distribution"
+        }
+      ],
+      "correctOptionId": "ch6-s09-o1",
+      "explanation": {
+        "reasoning": "HBase and RethinkDB adapt partition boundaries automatically. When a partition exceeds a configured size, it splits into two sub-ranges. This is analogous to how B-trees split nodes when they get too full. The boundaries adapt to the actual data distribution, preventing large skewed partitions.",
+        "tradeoffs": "Automatic boundary adaptation handles uneven data distribution well but adds operational complexity (split/merge operations). Some databases like BigTable allow manual boundary configuration for predictable workloads. Pre-2.4 MongoDB required manual selection of split points.",
+        "keyTakeaway": "Key-range partitioning boundaries can adapt automatically (like B-tree splits) rather than being fixed. This prevents skew from uneven data distribution.",
+        "commonMistake": "Setting static partition boundaries based on assumed data distribution. Real distributions shift over time \u2014 adaptive boundaries are more robust."
+      }
+    },
+    {
+      "id": "ch6-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "You're evaluating databases for a new project. Your queries involve:\n1. Looking up individual records by primary key\n2. Scanning ranges of records in sorted order (e.g., all events between two dates)\n3. Fetching records with keys near each other (e.g., all readings for sensor 42)\n\nYou're comparing key-range partitioning vs hash partitioning.",
+        "question": "For which of these query patterns does key-range partitioning have an advantage?"
+      },
+      "options": [
+        {
+          "id": "ch6-s10-o1",
+          "label": "Range scans (#2) and locality queries (#3) \u2014 adjacent keys are stored together",
+          "description": "Key-range keeps sorted order, so range scans and nearby keys are on the same partition"
+        },
+        {
+          "id": "ch6-s10-o2",
+          "label": "Individual lookups (#1) \u2014 key-range is faster for point queries",
+          "description": "Key-range partitioning optimizes single-key lookups"
+        },
+        {
+          "id": "ch6-s10-o3",
+          "label": "All three \u2014 key-range is better for every query pattern",
+          "description": "Key-range is universally superior to hash partitioning"
+        }
+      ],
+      "correctOptionId": "ch6-s10-o1",
+      "explanation": {
+        "reasoning": "Key-range partitioning preserves the sort order of keys. This means: (1) range scans can read contiguous data within a single partition without scatter/gather; (2) keys that are 'near' each other in sort order are stored on the same partition, providing locality. Point lookups (#1) work fine with both schemes. Hash partitioning destroys sort order, making range scans and locality queries inefficient.",
+        "tradeoffs": "The flip side is that key-range partitioning is more prone to hot spots if certain ranges are accessed more than others. Hash partitioning sacrifices range query efficiency for more even distribution. The choice depends on whether your workload is dominated by range queries or point lookups.",
+        "keyTakeaway": "Key-range partitioning's advantage is preserving sort order \u2014 enabling efficient range scans and key locality. Hash partitioning is better for even distribution but loses ordering.",
+        "commonMistake": "Choosing hash partitioning by default without considering query patterns. If range scans are frequent, hash partitioning forces expensive scatter/gather across all partitions."
+      }
+    },
+    {
+      "id": "ch6-s11",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "key-range"
+      ],
+      "prompt": {
+        "context": "You're reviewing the partitioning strategies of several databases:\n\n- Google BigTable, Apache HBase\n- RethinkDB\n- MongoDB (before version 2.4)\n- Cassandra\n- Riak, Voldemort",
+        "question": "Which of these use key-range partitioning?"
+      },
+      "options": [
+        {
+          "id": "ch6-s11-o1",
+          "label": "BigTable, HBase, RethinkDB, and pre-2.4 MongoDB",
+          "description": "These assign continuous key ranges to partitions with sorted storage"
+        },
+        {
+          "id": "ch6-s11-o2",
+          "label": "All of them use key-range partitioning",
+          "description": "Key-range is the universal standard for distributed databases"
+        },
+        {
+          "id": "ch6-s11-o3",
+          "label": "Only BigTable and HBase \u2014 the others all use hash partitioning",
+          "description": "Key-range is limited to the BigTable lineage"
+        }
+      ],
+      "correctOptionId": "ch6-s11-o1",
+      "explanation": {
+        "reasoning": "Key-range partitioning is used by BigTable (and its open-source counterpart HBase), RethinkDB, and MongoDB's initial sharding implementation (pre-2.4). These databases assign continuous ranges of keys to partitions, keeping data sorted. Cassandra offers both hash and key-range (with its compound key approach). Riak and Voldemort use hash-based partitioning.",
+        "tradeoffs": "Key-range partitioning databases typically support efficient range scans natively. MongoDB later added hash-based sharding as an option (post-2.4) because key-range was prone to hot spots for certain workloads. Cassandra's approach of hashing the first component and range-sorting the rest is a practical compromise.",
+        "keyTakeaway": "Key-range partitioning is used by BigTable/HBase, RethinkDB, and early MongoDB. It's the natural choice for workloads dominated by range scans and sorted access patterns.",
+        "commonMistake": "Assuming all NoSQL databases use the same partitioning strategy. The choice between key-range and hash partitioning is a fundamental architectural decision that varies across databases."
+      }
+    },
+    {
+      "id": "ch6-s12",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "hash-partitioning"
+      ],
+      "prompt": {
+        "context": "Your dataset has highly skewed keys \u2014 50% of records have keys starting with 'user_' and only 5% start with 'z'. With key-range partitioning, the 'user_' partition would be 10x larger than the 'z' partition.\n\nYou apply a hash function to each key before determining its partition.",
+        "question": "Why does hashing help distribute data more evenly?"
+      },
+      "options": [
+        {
+          "id": "ch6-s12-o1",
+          "label": "A good hash function maps similar inputs to uniformly distributed outputs \u2014 destroying the skew in the original keys",
+          "description": "user_123 and user_124 hash to completely different values, spreading them across partitions"
+        },
+        {
+          "id": "ch6-s12-o2",
+          "label": "Hashing compresses the keys so they take less space",
+          "description": "Smaller keys are easier to distribute evenly"
+        },
+        {
+          "id": "ch6-s12-o3",
+          "label": "Hashing encrypts the keys so the database can't see the skew",
+          "description": "The database treats encrypted keys as uniformly random"
+        }
+      ],
+      "correctOptionId": "ch6-s12-o1",
+      "explanation": {
+        "reasoning": "A good hash function takes skewed input data and produces a uniformly distributed output. Keys that look similar (user_123, user_124) hash to very different values, so they're assigned to different partitions. Each partition owns a range of hash values (not a range of original keys), ensuring roughly equal data distribution regardless of the key patterns.",
+        "tradeoffs": "The critical trade-off: hashing destroys key ordering. user_123 and user_124 end up on different partitions, so you can't efficiently scan a range of user keys. Any range query becomes a scatter/gather across all partitions.",
+        "keyTakeaway": "Hash partitioning distributes data evenly by transforming skewed keys into uniformly distributed hash values. Each partition owns a range of hash values.",
+        "commonMistake": "Thinking hashing only works for numeric keys. Any key (strings, compound keys, binary data) can be hashed. The hash function's job is to produce a uniform distribution regardless of input patterns."
+      }
+    },
+    {
+      "id": "ch6-s13",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hash-partitioning"
+      ],
+      "prompt": {
+        "context": "After switching to hash partitioning, a developer tries to run:\n\nSELECT * FROM users WHERE user_id BETWEEN 1000 AND 2000\n\nWith key-range partitioning, this was a single-partition sequential scan. Now the query returns correct results but is much slower.",
+        "question": "Why are range queries inefficient with hash partitioning?"
+      },
+      "options": [
+        {
+          "id": "ch6-s13-o1",
+          "label": "Adjacent keys hash to different partitions \u2014 the range is scattered across all partitions requiring scatter/gather",
+          "description": "user_id 1000, 1001, 1002 hash to different partitions; the query must contact all of them"
+        },
+        {
+          "id": "ch6-s13-o2",
+          "label": "Hash partitioning doesn't support the BETWEEN operator",
+          "description": "The SQL syntax isn't compatible with hash-partitioned tables"
+        },
+        {
+          "id": "ch6-s13-o3",
+          "label": "Hash functions are computationally expensive, slowing down the query",
+          "description": "Computing hashes for 1000 keys takes too long"
+        }
+      ],
+      "correctOptionId": "ch6-s13-o1",
+      "explanation": {
+        "reasoning": "Hash functions deliberately scatter adjacent keys to different partitions. user_id 1000 might hash to partition 3, 1001 to partition 7, 1002 to partition 1, etc. A range query over user_id 1000-2000 must be sent to ALL partitions (scatter), each partition finds matching hashes, and results are gathered \u2014 much slower than a single-partition sequential scan.",
+        "tradeoffs": "This is the fundamental trade-off of hash partitioning: even distribution at the cost of range query efficiency. MongoDB in hash mode sends range queries to all partitions. Riak, Couchbase, and Voldemort don't support range queries on the primary key at all.",
+        "keyTakeaway": "Hash partitioning destroys key ordering. Range queries that were efficient single-partition scans with key-range become expensive scatter/gather operations with hash partitioning.",
+        "commonMistake": "Switching to hash partitioning for better distribution without evaluating the impact on range queries. If range scans are a core access pattern, hash partitioning is the wrong choice."
+      }
+    },
+    {
+      "id": "ch6-s14",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hash-partitioning"
+      ],
+      "prompt": {
+        "context": "Cassandra uses a compromise approach for its primary key. Given a table:\n\nCREATE TABLE sensor_data (\n  sensor_id text,\n  timestamp timestamp,\n  value double,\n  PRIMARY KEY (sensor_id, timestamp)\n);\n\nThe first part (sensor_id) is hashed to choose the partition. The second part (timestamp) is used as a sort key within that partition.",
+        "question": "What does this compound primary key approach achieve?"
+      },
+      "options": [
+        {
+          "id": "ch6-s14-o1",
+          "label": "Even distribution across partitions (via hash of sensor_id) AND efficient range scans within each partition (via sorted timestamp)",
+          "description": "Hash the partition key for distribution, sort within partition for range queries"
+        },
+        {
+          "id": "ch6-s14-o2",
+          "label": "Both sensor_id and timestamp are hashed, doubling the distribution quality",
+          "description": "Hashing two columns provides better distribution than hashing one"
+        },
+        {
+          "id": "ch6-s14-o3",
+          "label": "Cassandra automatically switches between hash and range based on the query",
+          "description": "The database dynamically chooses the best strategy per query"
+        }
+      ],
+      "correctOptionId": "ch6-s14-o1",
+      "explanation": {
+        "reasoning": "Cassandra's compound primary key is a clever compromise: the first column (sensor_id) is hashed to determine the partition \u2014 ensuring even distribution. The remaining columns (timestamp) act as a concatenated index for sorting data within that partition. So queries like 'all readings for sensor X between time A and B' are efficient: hash sensor_id to find the partition, then do a range scan on sorted timestamps within it.",
+        "tradeoffs": "This only helps range queries that include the partition key (sensor_id). A query for 'all sensors between time A and B' still requires scatter/gather. The approach is a best-of-both-worlds for the common case where queries filter by the first key column.",
+        "keyTakeaway": "Cassandra's compound primary key: first column is hashed for partition distribution, remaining columns are sorted within the partition for range queries. This combines even distribution with efficient range scans.",
+        "commonMistake": "Assuming Cassandra's range scans work across partitions. They only work WITHIN a partition \u2014 the first primary key column (partition key) must be specified for efficient queries."
+      }
+    },
+    {
+      "id": "ch6-s15",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hash-partitioning"
+      ],
+      "prompt": {
+        "context": "A colleague says: 'We should use consistent hashing for our partitioning \u2014 it's the standard approach for distributed databases.'\n\nYou look up the original 1997 paper on consistent hashing by Karger et al.",
+        "question": "Why does Kleppmann argue that the term 'consistent hashing' is misleading in the context of database partitioning?"
+      },
+      "options": [
+        {
+          "id": "ch6-s15-o1",
+          "label": "Most databases don't actually use the original consistent hashing algorithm \u2014 they just hash keys to assign partitions",
+          "description": "The term is used loosely; actual consistent hashing (with a ring and virtual nodes) is rarely used as described in the paper"
+        },
+        {
+          "id": "ch6-s15-o2",
+          "label": "Consistent hashing is only for caches, not databases",
+          "description": "The algorithm was designed for CDNs and doesn't work for persistent data"
+        },
+        {
+          "id": "ch6-s15-o3",
+          "label": "Consistent hashing provides too strong a consistency guarantee",
+          "description": "The 'consistent' in the name conflicts with eventual consistency"
+        }
+      ],
+      "correctOptionId": "ch6-s15-o1",
+      "explanation": {
+        "reasoning": "The original consistent hashing paper describes a specific algorithm with a hash ring and randomly assigned points. In practice, most databases don't use this exact approach \u2014 they use a simpler scheme where each partition owns a range of a hash space, and the hash function assigns keys to partitions. Kleppmann argues the term is confusingly reused and prefers 'hash partitioning' to avoid implying the specific consistent hashing algorithm.",
+        "tradeoffs": "The original consistent hashing algorithm was designed for caching (CDNs) where load can be uneven. For databases, more controlled approaches (fixed partition counts, explicit hash range assignment) work better. Cassandra originally used consistent hashing but later moved to a simpler token-range approach.",
+        "keyTakeaway": "Most databases use simple hash partitioning (hash key \u2192 partition), not the original consistent hashing algorithm. The term 'consistent hashing' is used loosely and can be misleading.",
+        "commonMistake": "Assuming 'consistent hashing' in database documentation means the exact algorithm from the 1997 paper. In practice, it usually just means 'we hash the key to pick a partition.'"
+      }
+    },
+    {
+      "id": "ch6-s16",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "hash-partitioning"
+      ],
+      "prompt": {
+        "context": "You're choosing a hash function for your partitioning scheme. A security-focused engineer suggests SHA-256 for its cryptographic strength. Another suggests Murmur3 or FowlerNollVo, which are non-cryptographic.",
+        "question": "Why is a cryptographic hash function unnecessary for partitioning?"
+      },
+      "options": [
+        {
+          "id": "ch6-s16-o1",
+          "label": "Partitioning only needs uniform distribution, not collision resistance \u2014 non-cryptographic hashes are faster and sufficient",
+          "description": "Murmur3 distributes evenly and is much cheaper to compute than SHA-256"
+        },
+        {
+          "id": "ch6-s16-o2",
+          "label": "SHA-256 produces hashes that are too long for partition assignment",
+          "description": "256-bit hashes waste space compared to shorter hashes"
+        },
+        {
+          "id": "ch6-s16-o3",
+          "label": "Cryptographic hashes can't be used with key-range boundaries",
+          "description": "SHA-256 output isn't compatible with partition range assignment"
+        }
+      ],
+      "correctOptionId": "ch6-s16-o1",
+      "explanation": {
+        "reasoning": "For partitioning, the hash function only needs to produce a uniform distribution of outputs \u2014 spreading keys evenly across the hash space. Cryptographic properties (collision resistance, preimage resistance) are irrelevant and expensive. Non-cryptographic hash functions like Murmur3, FowlerNollVo, and CityHash are specifically designed for fast, well-distributed hashing. Cassandra uses Murmur3; many others use similar functions.",
+        "tradeoffs": "SHA-256 would work correctly but wastes CPU cycles on cryptographic guarantees that provide no benefit for partitioning. For a database processing millions of operations per second, hash function performance matters \u2014 a faster hash function directly improves throughput.",
+        "keyTakeaway": "Partitioning hash functions need uniform distribution, not cryptographic strength. Non-cryptographic hashes (Murmur3, FowlerNollVo) are fast and sufficient.",
+        "commonMistake": "Using Java's Object.hashCode() for partitioning. Many language built-in hash functions are not suitable \u2014 Java's hashCode() may return different values in different processes, making it non-deterministic for partitioning."
+      }
+    },
+    {
+      "id": "ch6-s17",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hash-partitioning",
+        "key-range"
+      ],
+      "prompt": {
+        "context": "MongoDB (post-2.4) lets you choose between two sharding modes per collection:\n\n- Range-based sharding: partition boundaries are key ranges\n- Hash-based sharding: partition boundaries are hash value ranges\n\nYour collection stores user activity logs with an auto-incrementing _id field. Queries are mostly point lookups by _id and full-collection analytics scans.",
+        "question": "Which sharding mode should you choose?"
+      },
+      "options": [
+        {
+          "id": "ch6-s17-o1",
+          "label": "Hash-based \u2014 auto-incrementing _id would create a hot spot with range-based sharding",
+          "description": "All new writes go to the highest range partition; hashing distributes them evenly"
+        },
+        {
+          "id": "ch6-s17-o2",
+          "label": "Range-based \u2014 it preserves the natural order of _id for analytics",
+          "description": "Sequential _ids enable efficient range scans for analytics queries"
+        },
+        {
+          "id": "ch6-s17-o3",
+          "label": "Either works equally well for this workload",
+          "description": "Both modes handle point lookups and analytics the same way"
+        }
+      ],
+      "correctOptionId": "ch6-s17-o1",
+      "explanation": {
+        "reasoning": "Auto-incrementing _id is a monotonically increasing key \u2014 with range-based sharding, all new writes would go to the last partition (hot spot). Hash-based sharding distributes writes evenly regardless of _id order. Since queries are mostly point lookups (which work fine with hash) and full-collection scans (which touch all partitions either way), hash-based is the clear winner.",
+        "tradeoffs": "If the workload included many range queries on _id (e.g., 'all logs between id 1000 and 2000'), range-based would be better despite the hot spot risk. The choice depends on which queries dominate: point lookups favor hash, range scans favor key-range.",
+        "keyTakeaway": "Hash-based sharding is the right choice for monotonically increasing keys (auto-increment, timestamps) to avoid hot spots. Range-based is better when range queries on the shard key are critical.",
+        "commonMistake": "Using range-based sharding with auto-incrementing keys. This is the most common partitioning anti-pattern \u2014 all writes concentrate on one partition."
+      }
+    },
+    {
+      "id": "ch6-s18",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hot-spots"
+      ],
+      "prompt": {
+        "context": "Your social media platform uses hash partitioning on user_id. A celebrity with user_id 'taylorswift' makes a post that goes viral. Millions of users simultaneously request that post.\n\nAll requests for taylorswift's data hash to the same partition.",
+        "question": "Why can't hash partitioning prevent this hot spot?"
+      },
+      "options": [
+        {
+          "id": "ch6-s18-o1",
+          "label": "Hash partitioning distributes ACROSS keys, not WITHIN a key \u2014 all requests for the same key go to the same partition",
+          "description": "The hash of 'taylorswift' always produces the same value, sending all traffic to one partition"
+        },
+        {
+          "id": "ch6-s18-o2",
+          "label": "Hash partitioning can't handle high-throughput workloads",
+          "description": "Hash functions become a bottleneck under high load"
+        },
+        {
+          "id": "ch6-s18-o3",
+          "label": "The celebrity's data is too large for one partition",
+          "description": "Data size, not request volume, is the problem"
+        }
+      ],
+      "correctOptionId": "ch6-s18-o1",
+      "explanation": {
+        "reasoning": "Hash partitioning distributes different keys to different partitions \u2014 it reduces data skew across keys. But it can't help when one specific key receives disproportionate traffic (reads or writes). All requests for user_id='taylorswift' hash to the same value and go to the same partition. This 'celebrity' or 'hot key' problem is inherent to any key-based partitioning scheme.",
+        "tradeoffs": "This must be handled at the application level \u2014 the database can't automatically split traffic for a single key across partitions. Most databases today require manual intervention for hot keys.",
+        "keyTakeaway": "Hash partitioning eliminates skew across keys but cannot prevent hot spots caused by extreme traffic to a single key. Hot key problems require application-level mitigation.",
+        "commonMistake": "Expecting hash partitioning to solve all distribution problems. It handles data skew (uneven key distribution) but not access skew (uneven request distribution for specific keys)."
+      }
+    },
+    {
+      "id": "ch6-s19",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hot-spots"
+      ],
+      "prompt": {
+        "context": "You need to mitigate the celebrity hot key problem. Your approach:\n\nFor known hot keys, append a random 2-digit number (00-99) to the key before writing:\n- taylorswift \u2192 taylorswift-42\n- taylorswift \u2192 taylorswift-07\n\nThis spreads writes for 'taylorswift' across up to 100 different partitions.",
+        "question": "What is the cost of this approach when reading?"
+      },
+      "options": [
+        {
+          "id": "ch6-s19-o1",
+          "label": "Reads must query all 100 suffixed keys across partitions and combine the results",
+          "description": "To read taylorswift's data, you must fetch taylorswift-00 through taylorswift-99 and merge them"
+        },
+        {
+          "id": "ch6-s19-o2",
+          "label": "No read cost \u2014 the database automatically recombines the suffixed keys",
+          "description": "The random suffix is transparent to reads"
+        },
+        {
+          "id": "ch6-s19-o3",
+          "label": "Reads are faster because the data is smaller on each partition",
+          "description": "Smaller partitions mean faster lookups"
+        }
+      ],
+      "correctOptionId": "ch6-s19-o1",
+      "explanation": {
+        "reasoning": "Splitting a hot key into 100 suffixed keys distributes writes across up to 100 partitions. But now every read for 'taylorswift' must fetch all 100 suffixed versions (taylorswift-00 through taylorswift-99), query up to 100 partitions, and combine the results. This adds significant read complexity and bookkeeping to track which keys have been split.",
+        "tradeoffs": "This technique trades read complexity for write distribution. It makes sense only for genuinely hot keys \u2014 applying it to all keys would make every read 100x more expensive. You need bookkeeping to know which keys have been split, adding another layer of application complexity.",
+        "keyTakeaway": "Random suffix hot key mitigation distributes writes but makes reads more expensive \u2014 you must fan out to all suffix partitions and combine results. Only apply it to actually hot keys.",
+        "commonMistake": "Applying the random suffix approach to all keys 'just in case.' The read amplification cost is significant \u2014 it should only be used for keys that are genuinely causing hot spots."
+      }
+    },
+    {
+      "id": "ch6-s20",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "hot-spots"
+      ],
+      "prompt": {
+        "context": "Your system detects that a particular partition is receiving 10x more traffic than others. You want the database to automatically detect this and redistribute the hot partition's data.\n\nYou check the documentation.",
+        "question": "Can most databases automatically handle hot key redistribution today?"
+      },
+      "options": [
+        {
+          "id": "ch6-s20-o1",
+          "label": "No \u2014 most systems require application-level handling; automatic hot spot detection and compensation is an area of active research",
+          "description": "As of DDIA's writing, databases leave hot key mitigation to the application"
+        },
+        {
+          "id": "ch6-s20-o2",
+          "label": "Yes \u2014 all modern databases automatically split hot partitions",
+          "description": "Automatic hot spot handling is a standard database feature"
+        },
+        {
+          "id": "ch6-s20-o3",
+          "label": "Yes \u2014 hash partitioning automatically prevents all hot spots",
+          "description": "Hash functions guarantee even load distribution"
+        }
+      ],
+      "correctOptionId": "ch6-s20-o1",
+      "explanation": {
+        "reasoning": "As of DDIA's writing, most databases cannot automatically detect and compensate for hot keys. It remains the application's responsibility to identify hot keys and apply mitigation (random suffixes, caching, etc.). Automatic hot spot detection and redistribution is an area of ongoing research but is not yet a standard feature in production databases.",
+        "tradeoffs": "Some systems provide tools to help \u2014 monitoring dashboards, per-partition metrics \u2014 but the actual mitigation logic must be implemented by the application. Future databases may handle this automatically, but for now, it's a manual concern that must be designed into the application architecture.",
+        "keyTakeaway": "Hot key detection and mitigation is currently an application-level responsibility. Most databases don't automatically redistribute hot keys \u2014 it's an open area of research.",
+        "commonMistake": "Assuming the database will automatically handle hot keys. Application architects must plan for celebrity/hot key scenarios and implement mitigation strategies proactively."
+      }
+    },
+    {
+      "id": "ch6-s21",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "hot-spots",
+        "key-range"
+      ],
+      "prompt": {
+        "context": "You operate an IoT platform with 100,000 sensors writing data every second. The partition key is timestamp (key-range partitioning). All writes go to today's partition.\n\nYou consider three fixes:\n- A: Hash partition by timestamp\n- B: Change key to (sensor_id, timestamp) with key-range partitioning\n- C: Change key to (sensor_id, timestamp) with hash on sensor_id only",
+        "question": "Which fix eliminates the write hot spot while preserving efficient per-sensor time-range queries?"
+      },
+      "options": [
+        {
+          "id": "ch6-s21-o1",
+          "label": "C \u2014 hash sensor_id across partitions, sort by timestamp within each partition",
+          "description": "Writes are spread by sensor_id; time-range queries for one sensor scan sorted data within one partition"
+        },
+        {
+          "id": "ch6-s21-o2",
+          "label": "A \u2014 hash partitioning by timestamp distributes writes evenly",
+          "description": "Hashing timestamps ensures even write distribution"
+        },
+        {
+          "id": "ch6-s21-o3",
+          "label": "B \u2014 key-range on (sensor_id, timestamp) preserves sort order",
+          "description": "Key-range partitioning with compound key maintains time ordering"
+        }
+      ],
+      "correctOptionId": "ch6-s21-o1",
+      "explanation": {
+        "reasoning": "Option C (Cassandra-style compound key) hashes sensor_id to distribute writes across partitions \u2014 each sensor lands on a different partition. Within each partition, data is sorted by timestamp, enabling efficient time-range queries for a specific sensor. Option A hashes timestamps, destroying time ordering. Option B key-range on compound key would still have skew if sensor_id ranges are uneven.",
+        "tradeoffs": "Option C sacrifices cross-sensor time-range queries (scatter/gather) for per-sensor efficiency. This is acceptable if per-sensor queries dominate. If you need 'all sensors at time T,' you'd need a secondary index or a separate materialized view.",
+        "keyTakeaway": "The Cassandra-style compound key (hash first component, sort by rest) solves the write hot spot while preserving per-partition range queries \u2014 the best compromise for most time-series workloads.",
+        "commonMistake": "Thinking key-range partitioning on a compound key is always safe. If the first component (sensor_id) has skewed access patterns, key-range still concentrates popular sensors on one partition. Hashing the first component is safer for distribution."
+      }
+    },
+    {
+      "id": "ch6-s22",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-local"
+      ],
+      "prompt": {
+        "context": "Your car sales database is partitioned by document ID. Each partition stores a subset of car listings.\n\nA user searches: 'all red cars.' The color field is NOT the partition key.\n\nEach partition maintains its OWN secondary index on color, covering only the listings in that partition.",
+        "question": "How is this query executed?"
+      },
+      "options": [
+        {
+          "id": "ch6-s22-o1",
+          "label": "Scatter/gather: send the query to ALL partitions, each searches its local index, results are combined",
+          "description": "Every partition's local index must be queried because red cars could be on any partition"
+        },
+        {
+          "id": "ch6-s22-o2",
+          "label": "A single partition's index has all color data \u2014 the query is routed there",
+          "description": "One partition stores the global color index"
+        },
+        {
+          "id": "ch6-s22-o3",
+          "label": "The query fails \u2014 secondary index queries aren't supported on partitioned databases",
+          "description": "Only primary key queries work with partitioning"
+        }
+      ],
+      "correctOptionId": "ch6-s22-o1",
+      "explanation": {
+        "reasoning": "With document-partitioned (local) secondary indexes, each partition independently indexes only its own data. A query on 'color=red' can't know which partitions have red cars, so it must be sent to ALL partitions. Each partition searches its local color index and returns matching documents. The results from all partitions are then combined. This is called scatter/gather.",
+        "tradeoffs": "Local indexes make writes simple \u2014 when you add a car listing, only one partition's index needs updating. But reads by secondary index require scatter/gather across all partitions, which is expensive. This is also known as 'document-partitioned' indexing.",
+        "keyTakeaway": "Document-partitioned (local) secondary indexes: each partition indexes its own data. Writes are local (fast), but secondary index queries require scatter/gather across all partitions.",
+        "commonMistake": "Assuming a secondary index query on a partitioned database only hits one partition. With local indexes, EVERY partition must be queried because the secondary index data is distributed."
+      }
+    },
+    {
+      "id": "ch6-s23",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-local"
+      ],
+      "prompt": {
+        "context": "Your scatter/gather query hits 20 partitions in parallel. 19 partitions respond in 5ms, but one partition is under heavy load and responds in 500ms.\n\nThe overall query latency is 500ms \u2014 determined by the slowest partition.",
+        "question": "What is this latency problem called?"
+      },
+      "options": [
+        {
+          "id": "ch6-s23-o1",
+          "label": "Tail latency amplification \u2014 the response time is determined by the slowest partition (the tail of the latency distribution)",
+          "description": "With N parallel requests, the chance of hitting at least one slow response increases with N"
+        },
+        {
+          "id": "ch6-s23-o2",
+          "label": "Head-of-line blocking \u2014 the first response blocks the rest",
+          "description": "Results are processed sequentially, with the first result blocking"
+        },
+        {
+          "id": "ch6-s23-o3",
+          "label": "Partition skew \u2014 one partition has more data than others",
+          "description": "The slow partition has more documents to search"
+        }
+      ],
+      "correctOptionId": "ch6-s23-o1",
+      "explanation": {
+        "reasoning": "Tail latency amplification occurs when a request fans out to multiple services (or partitions) in parallel and the overall latency is determined by the slowest response. Even if 99th percentile latency per partition is 500ms, with 20 parallel requests, the probability that at least one exceeds 500ms is much higher. More partitions = worse tail latency.",
+        "tradeoffs": "This is a fundamental problem with scatter/gather. Mitigations include: reducing the number of partitions queried (using global indexes instead), hedging requests (sending to multiple replicas), or setting timeouts and returning partial results. But the fundamental amplification effect can't be eliminated.",
+        "keyTakeaway": "Scatter/gather amplifies tail latency: the overall response time equals the slowest partition. More partitions = more chances to hit a slow one.",
+        "commonMistake": "Evaluating scatter/gather performance using average latency. The median may be fine, but the p99 is much worse because tail latency amplification compounds with each additional partition."
+      }
+    },
+    {
+      "id": "ch6-s24",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-local"
+      ],
+      "prompt": {
+        "context": "Your car listings database supports two query patterns:\n1. Search by make + model (e.g., 'Toyota Camry') \u2014 these always include the partition key (make)\n2. Search by color across all makes (e.g., 'all red cars')\n\nData is partitioned by make. Each partition has local secondary indexes on color, model, year, etc.",
+        "question": "For which query pattern are local secondary indexes efficient?"
+      },
+      "options": [
+        {
+          "id": "ch6-s24-o1",
+          "label": "Query 1 \u2014 when the partition key is included, the query targets a single partition's local index",
+          "description": "Searching 'Toyota Camry' routes to the Toyota partition and uses its local index on model"
+        },
+        {
+          "id": "ch6-s24-o2",
+          "label": "Query 2 \u2014 color searches benefit from local indexes across all partitions",
+          "description": "Local indexes make cross-partition color searches efficient"
+        },
+        {
+          "id": "ch6-s24-o3",
+          "label": "Both are equally efficient with local secondary indexes",
+          "description": "Local indexes optimize all secondary key lookups equally"
+        }
+      ],
+      "correctOptionId": "ch6-s24-o1",
+      "explanation": {
+        "reasoning": "When the query includes the partition key ('make=Toyota'), it routes to a single partition. That partition's local secondary index on 'model' then efficiently finds 'Camry'. No scatter/gather needed. But 'all red cars' (no partition key) requires scatter/gather across ALL partitions \u2014 much more expensive. Local indexes are efficient when queries usually include the partition key.",
+        "tradeoffs": "This is why partition key choice is so important. If most queries include the partition key, local indexes work great (single-partition lookups). If most queries filter by secondary attributes WITHOUT the partition key, you're doing scatter/gather on every query \u2014 consider a global index instead.",
+        "keyTakeaway": "Local secondary indexes are efficient when queries include the partition key (single-partition lookup). Without the partition key, every query becomes scatter/gather.",
+        "commonMistake": "Choosing a partition key without considering secondary index query patterns. If most queries don't include the partition key, local indexes cause expensive scatter/gather on every search."
+      }
+    },
+    {
+      "id": "ch6-s25",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "secondary-indexes-local"
+      ],
+      "prompt": {
+        "context": "You're reviewing how various databases handle secondary indexes in a partitioned/sharded setup:\n\n- MongoDB\n- Riak\n- Cassandra\n- Elasticsearch / SolrCloud\n- VoltDB",
+        "question": "What approach do these databases use for secondary indexes?"
+      },
+      "options": [
+        {
+          "id": "ch6-s25-o1",
+          "label": "Document-partitioned (local) secondary indexes with scatter/gather for non-partition-key queries",
+          "description": "Each shard maintains its own local index; cross-shard queries use scatter/gather"
+        },
+        {
+          "id": "ch6-s25-o2",
+          "label": "A single global index stored on a dedicated node",
+          "description": "One node holds the entire secondary index for all partitions"
+        },
+        {
+          "id": "ch6-s25-o3",
+          "label": "These databases don't support secondary indexes at all",
+          "description": "Secondary indexes are not available in partitioned mode"
+        }
+      ],
+      "correctOptionId": "ch6-s25-o1",
+      "explanation": {
+        "reasoning": "MongoDB, Riak, Cassandra, Elasticsearch, SolrCloud, and VoltDB all use document-partitioned (local) secondary indexes. Each partition/shard maintains its own secondary index covering only its data. Queries on secondary fields that don't include the partition key require scatter/gather \u2014 known as a 'global query' in MongoDB or a 'scatter-gather query' in other systems.",
+        "tradeoffs": "Local indexes are the most common approach because they keep writes simple (only one partition's index needs updating). The read-side scatter/gather cost is accepted as a trade-off. Elasticsearch and Solr are search engines built around this pattern \u2014 they're optimized for parallel scatter/gather with sophisticated result merging.",
+        "keyTakeaway": "Document-partitioned (local) secondary indexes are the dominant approach in distributed databases: MongoDB, Riak, Cassandra, Elasticsearch, SolrCloud, and VoltDB all use this pattern.",
+        "commonMistake": "Expecting secondary index queries on these databases to be as fast as primary key lookups. Secondary queries require scatter/gather, which is fundamentally more expensive."
+      }
+    },
+    {
+      "id": "ch6-s26",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-global"
+      ],
+      "prompt": {
+        "context": "Instead of each partition maintaining its own color index, you build a GLOBAL secondary index on color that is itself partitioned:\n\n- Partition 0 of the color index: colors a-r (covers 'red')\n- Partition 1 of the color index: colors s-z (covers 'silver')\n\nThe color index partition is stored separately from the data partitions.\n\nA user queries: 'all red cars.'",
+        "question": "How does the query execute with this global (term-partitioned) secondary index?"
+      },
+      "options": [
+        {
+          "id": "ch6-s26-o1",
+          "label": "Route to the single index partition for 'red' (partition 0), get the list of document IDs, then fetch those documents from their respective data partitions",
+          "description": "One index lookup, then targeted fetches \u2014 no scatter/gather on the index"
+        },
+        {
+          "id": "ch6-s26-o2",
+          "label": "Scatter the query to all data partitions, same as with local indexes",
+          "description": "Global indexes still require scatter/gather for reads"
+        },
+        {
+          "id": "ch6-s26-o3",
+          "label": "The global index returns the full documents directly, no further fetches needed",
+          "description": "The index stores complete copies of all matching documents"
+        }
+      ],
+      "correctOptionId": "ch6-s26-o1",
+      "explanation": {
+        "reasoning": "With a term-partitioned (global) secondary index, the query 'color=red' routes to the specific index partition that covers 'red.' That partition returns a list of document IDs matching the color. The system then fetches those documents from their respective data partitions. The key advantage: the index lookup hits ONE partition, not all of them \u2014 reads are efficient.",
+        "tradeoffs": "The trade-off is on writes: when you add a red car to data partition 5, the global color index (on a different partition) also needs updating. A single document write may require updating indexes on multiple partitions \u2014 a distributed write that's more complex and slower than local index updates.",
+        "keyTakeaway": "Global (term-partitioned) secondary indexes make reads efficient (single index partition lookup) at the cost of more complex writes (updating index entries across partition boundaries).",
+        "commonMistake": "Thinking a global secondary index is stored on a single node. It's partitioned too \u2014 but partitioned by the INDEX term (e.g., color value), not by the same key as the data."
+      }
+    },
+    {
+      "id": "ch6-s27",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-global"
+      ],
+      "prompt": {
+        "context": "When a new car listing (red Toyota, partition 5) is inserted, the global color index (on partition 0) must be updated to include this new document.\n\nThis is a cross-partition write: the data goes to partition 5, but the index update goes to partition 0.",
+        "question": "Why are global secondary index updates usually asynchronous?"
+      },
+      "options": [
+        {
+          "id": "ch6-s27-o1",
+          "label": "Synchronous cross-partition updates would require distributed transactions, adding significant latency and complexity",
+          "description": "Updating index and data partitions atomically requires 2PC or equivalent, which is expensive"
+        },
+        {
+          "id": "ch6-s27-o2",
+          "label": "Asynchronous updates are more accurate because they can batch changes",
+          "description": "Batching produces better index quality than real-time updates"
+        },
+        {
+          "id": "ch6-s27-o3",
+          "label": "Network bandwidth between partitions is too limited for synchronous updates",
+          "description": "The volume of index update traffic would saturate the network"
+        }
+      ],
+      "correctOptionId": "ch6-s27-o1",
+      "explanation": {
+        "reasoning": "A synchronous global index update means: write data to partition 5 AND update the index on partition 0 in a single atomic transaction. This requires a distributed transaction (like two-phase commit) which adds latency, complexity, and reduces availability. Instead, most systems update global secondary indexes asynchronously \u2014 the index may be slightly stale but writes are fast and simple.",
+        "tradeoffs": "The consequence of async updates: a read on the global index immediately after a write may not reflect the latest change. Amazon DynamoDB's global secondary indexes are async and state that updates are reflected 'within a fraction of a second' under normal conditions \u2014 but there's no hard guarantee.",
+        "keyTakeaway": "Global secondary index updates are usually asynchronous because synchronous cross-partition updates would require expensive distributed transactions. The trade-off is temporary index staleness.",
+        "commonMistake": "Expecting a global secondary index query to reflect a write that just completed. With async index updates, there's a brief window where the index is stale \u2014 read-after-write consistency is not guaranteed."
+      }
+    },
+    {
+      "id": "ch6-s28",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "secondary-indexes-global"
+      ],
+      "prompt": {
+        "context": "You're designing the partitioning scheme for a global secondary index on car color. Two options:\n\n- A: Partition the index by term range (a-r on partition 0, s-z on partition 1)\n- B: Partition the index by hash of the term (hash('red') \u2192 partition 3, hash('silver') \u2192 partition 7)",
+        "question": "What is the trade-off between these approaches?"
+      },
+      "options": [
+        {
+          "id": "ch6-s28-o1",
+          "label": "Range: efficient range scans on the index term (e.g., all colors starting with 'r') but risk of hot spots. Hash: even distribution but no range scans.",
+          "description": "Same key-range vs hash trade-off applies to the index itself"
+        },
+        {
+          "id": "ch6-s28-o2",
+          "label": "Range is always faster because it avoids hash computation",
+          "description": "Avoiding the hash function overhead makes range partitioning faster"
+        },
+        {
+          "id": "ch6-s28-o3",
+          "label": "Hash is always better because global indexes need even distribution",
+          "description": "Global indexes must be hash-partitioned to work correctly"
+        }
+      ],
+      "correctOptionId": "ch6-s28-o1",
+      "explanation": {
+        "reasoning": "The same key-range vs hash trade-off from data partitioning applies to global index partitioning. Range-partitioned indexes support efficient range scans on the index term (e.g., 'all cars with colors between red and russet') but can have hot spots if certain terms are much more popular. Hash-partitioned indexes distribute terms evenly but destroy ordering \u2014 range scans on the term require scatter/gather.",
+        "tradeoffs": "For a global index on price, range partitioning enables efficient queries like 'all cars between $10K and $20K.' For an index on color (where range scans are rare), hash partitioning's even distribution is more valuable. Choose based on whether range queries on the INDEX term are important.",
+        "keyTakeaway": "Global secondary indexes can be partitioned by term range (enables range scans) or hash of term (even distribution). The same key-range vs hash trade-off applies.",
+        "commonMistake": "Forgetting that global secondary indexes are partitioned too \u2014 and the partitioning strategy for the INDEX is a separate decision from the data partitioning strategy."
+      }
+    },
+    {
+      "id": "ch6-s29",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "secondary-indexes-local",
+        "secondary-indexes-global"
+      ],
+      "prompt": {
+        "context": "You're choosing between local and global secondary indexes for your partitioned database:\n\n| Aspect | Local (Document) | Global (Term) |\n|--------|-----------------|---------------|\n| Write  | ?               | ?             |\n| Read   | ?               | ?             |",
+        "question": "Which correctly describes the read/write trade-off?"
+      },
+      "options": [
+        {
+          "id": "ch6-s29-o1",
+          "label": "Local: fast writes (single partition), slow reads (scatter/gather). Global: slow writes (cross-partition), fast reads (single index partition).",
+          "description": "Local optimizes writes; global optimizes reads"
+        },
+        {
+          "id": "ch6-s29-o2",
+          "label": "Local: slow writes, fast reads. Global: fast writes, slow reads.",
+          "description": "Local optimizes reads; global optimizes writes"
+        },
+        {
+          "id": "ch6-s29-o3",
+          "label": "Both have the same read/write performance characteristics",
+          "description": "The indexing strategy doesn't affect read/write trade-offs"
+        }
+      ],
+      "correctOptionId": "ch6-s29-o1",
+      "explanation": {
+        "reasoning": "Local (document-partitioned) indexes: writes are fast because only one partition's index needs updating. But reads by secondary index require scatter/gather across all partitions. Global (term-partitioned) indexes: reads are efficient (single index partition lookup). But writes are more complex because the data partition and index partition may be different nodes, requiring cross-partition updates (usually async).",
+        "tradeoffs": "This is the fundamental trade-off between the two approaches. If your workload is write-heavy and reads usually include the partition key, local indexes are better. If reads by secondary attributes are the dominant pattern, global indexes provide much better read performance at the cost of write complexity and index staleness.",
+        "keyTakeaway": "Local secondary indexes optimize for write simplicity (single-partition writes) but pay at read time (scatter/gather). Global secondary indexes optimize for read efficiency (single-partition lookup) but pay at write time (cross-partition updates).",
+        "commonMistake": "Choosing between local and global indexes without understanding the workload. The right choice depends on whether reads or writes dominate, and whether queries typically include the partition key."
+      }
+    },
+    {
+      "id": "ch6-s30",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "Your cluster has grown from 4 to 6 nodes. Some nodes have more data than others due to organic growth. You need to move data so that load is shared fairly across all 6 nodes.\n\nRequirements:\n- After rebalancing, load should be spread fairly\n- During rebalancing, reads and writes should continue working\n- Only the minimum necessary data should move between nodes",
+        "question": "What is this process called?"
+      },
+      "options": [
+        {
+          "id": "ch6-s30-o1",
+          "label": "Rebalancing \u2014 moving data between nodes to maintain fair distribution as the cluster changes",
+          "description": "The process of redistributing partitions across nodes after cluster size or data volume changes"
+        },
+        {
+          "id": "ch6-s30-o2",
+          "label": "Repartitioning \u2014 changing the partition boundaries to split data differently",
+          "description": "Modifying how data is divided into partitions"
+        },
+        {
+          "id": "ch6-s30-o3",
+          "label": "Defragmentation \u2014 compacting data within each node",
+          "description": "Reorganizing data on disk for better performance"
+        }
+      ],
+      "correctOptionId": "ch6-s30-o1",
+      "explanation": {
+        "reasoning": "Rebalancing is the process of moving partitions between nodes to maintain fair load distribution. It's needed when: nodes are added or removed, data grows unevenly, or throughput increases requiring more nodes. The key requirements are: (1) fair distribution afterward, (2) continued service during the process, (3) minimal data movement.",
+        "tradeoffs": "Rebalancing moves data over the network, which consumes bandwidth and can temporarily impact performance. Moving the minimum necessary data (requirement 3) is important \u2014 a naive approach that moves all data is prohibitively expensive. This is why 'hash mod N' is terrible for rebalancing.",
+        "keyTakeaway": "Rebalancing moves partitions between nodes to maintain fair distribution. Key requirements: fair result, continued service during the process, and minimal data movement.",
+        "commonMistake": "Confusing rebalancing (moving partitions between nodes) with repartitioning (changing how data is divided into partitions). Rebalancing moves existing partitions; repartitioning creates new partition boundaries."
+      }
+    },
+    {
+      "id": "ch6-s31",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "A junior engineer proposes a simple partitioning scheme: assign each key to partition number hash(key) mod N, where N is the number of nodes.\n\nWith 10 nodes, key 'alice' hashes to 3, going to node 3.\n\nYou add an 11th node (N changes from 10 to 11).",
+        "question": "Why is 'hash mod N' a terrible rebalancing strategy?"
+      },
+      "options": [
+        {
+          "id": "ch6-s31-o1",
+          "label": "Changing N reassigns most keys to different partitions \u2014 nearly all data must move",
+          "description": "hash(key) mod 10 \u2260 hash(key) mod 11 for most keys, so most keys change partition"
+        },
+        {
+          "id": "ch6-s31-o2",
+          "label": "Hash mod N can't handle more than 256 nodes",
+          "description": "The modulo operation overflows for large N"
+        },
+        {
+          "id": "ch6-s31-o3",
+          "label": "Hash mod N produces uneven distribution",
+          "description": "The modulo operation clusters keys on certain partitions"
+        }
+      ],
+      "correctOptionId": "ch6-s31-o1",
+      "explanation": {
+        "reasoning": "When N changes from 10 to 11, hash(key) mod 10 produces a different result than hash(key) mod 11 for the vast majority of keys. For example, if hash('alice') = 123, then 123 mod 10 = 3 but 123 mod 11 = 2 \u2014 alice must move from node 3 to node 2. This happens for roughly (N-1)/N of all keys: ~90% of data must move when adding just one node. This violates the 'minimal data movement' requirement.",
+        "tradeoffs": "The correct approaches \u2014 fixed partition count, dynamic partitioning, proportional to nodes \u2014 all ensure that adding a node only moves a proportional fraction of data (roughly 1/N of total data). Hash mod N moves nearly everything, making it prohibitively expensive for large datasets.",
+        "keyTakeaway": "Hash mod N is terrible for rebalancing because changing N causes most keys to be reassigned, requiring nearly all data to move. Good strategies move only ~1/N of data when adding a node.",
+        "commonMistake": "Using hash mod N because it seems simple and intuitive. It works fine if N never changes, but any cluster size change triggers a near-total data reshuffle."
+      }
+    },
+    {
+      "id": "ch6-s32",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "Riak, Elasticsearch, Couchbase, and Voldemort use a 'fixed number of partitions' strategy:\n\n1. Create many more partitions than nodes at the start (e.g., 1000 partitions for 10 nodes = 100 per node)\n2. When a new node joins, it takes some partitions from existing nodes\n3. When a node leaves, its partitions are distributed to remaining nodes\n\nThe number of partitions never changes \u2014 only the assignment of partitions to nodes changes.",
+        "question": "Why create many more partitions than nodes?"
+      },
+      "options": [
+        {
+          "id": "ch6-s32-o1",
+          "label": "Having excess partitions allows rebalancing by simply reassigning whole partitions \u2014 no splitting or merging needed",
+          "description": "Moving whole partitions between nodes is simple and only moves 1/N of data when adding a node"
+        },
+        {
+          "id": "ch6-s32-o2",
+          "label": "More partitions improve query performance by increasing parallelism",
+          "description": "Each query touches more partitions, enabling more parallel work"
+        },
+        {
+          "id": "ch6-s32-o3",
+          "label": "The extra partitions serve as hot standbys for failover",
+          "description": "Unused partitions take over when active partitions fail"
+        }
+      ],
+      "correctOptionId": "ch6-s32-o1",
+      "explanation": {
+        "reasoning": "With 1000 partitions and 10 nodes, each node has ~100 partitions. When node 11 joins, it takes ~91 partitions (one from each existing node), resulting in ~91 partitions per node. Only the moved partitions' data transfers \u2014 roughly 1/11 of total data. The number of partitions stays fixed at 1000; only the partition-to-node mapping changes. This is simple, predictable, and moves minimal data.",
+        "tradeoffs": "The partition count must be chosen carefully at creation time. Too few: can't distribute across many nodes. Too many: each partition is small, adding management overhead. The 'right' number depends on the expected maximum cluster size and data volume \u2014 and it can't be changed later (without major rework) in most implementations.",
+        "keyTakeaway": "Fixed partition count: create many partitions upfront, assign them to nodes. Rebalancing moves whole partitions between nodes \u2014 simple, predictable, and moves only ~1/N of data.",
+        "commonMistake": "Choosing the fixed partition count too low or too high. Too low means you can't scale to more nodes later. Too high means excessive overhead per partition (memory, file handles, etc.)."
+      }
+    },
+    {
+      "id": "ch6-s33",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "You're setting up an Elasticsearch cluster with a fixed number of shards (partitions). The data will grow from 10 GB today to potentially 10 TB over the next 3 years. The cluster will grow from 3 nodes to possibly 100 nodes.\n\nYou must choose the fixed shard count now.",
+        "question": "What is the challenge of choosing the right fixed partition count?"
+      },
+      "options": [
+        {
+          "id": "ch6-s33-o1",
+          "label": "Too few partitions limits future scalability; too many creates overhead now \u2014 you must predict the future cluster size",
+          "description": "The count is fixed at creation and hard to change; you need to balance current overhead against future needs"
+        },
+        {
+          "id": "ch6-s33-o2",
+          "label": "No challenge \u2014 you can always change the partition count later",
+          "description": "Elasticsearch allows easy shard count changes on existing indices"
+        },
+        {
+          "id": "ch6-s33-o3",
+          "label": "The partition count doesn't affect scalability",
+          "description": "Number of partitions is independent of cluster scaling"
+        }
+      ],
+      "correctOptionId": "ch6-s33-o1",
+      "explanation": {
+        "reasoning": "With fixed partition count, you must choose wisely at creation: if you create 10 partitions, you can never distribute across more than 10 nodes (each node needs at least one partition). If you create 10,000 partitions for a 10 GB dataset, each partition is only 1 MB \u2014 too small, causing excessive overhead. The right choice depends on predicting the future data size and cluster size, which is inherently uncertain.",
+        "tradeoffs": "This is why some databases (HBase, RethinkDB) use dynamic partitioning instead \u2014 partitions split and merge as data grows, adapting automatically. But dynamic partitioning has its own complexities (split/merge operations, initial bootstrapping).",
+        "keyTakeaway": "Fixed partition count requires predicting future scale at creation time. Too few limits scalability; too many wastes resources. This prediction problem is the main drawback of fixed partitioning.",
+        "commonMistake": "Choosing the partition count based on current cluster size rather than anticipated future maximum. Under-provisioning partitions creates a hard ceiling on scalability."
+      }
+    },
+    {
+      "id": "ch6-s34",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "HBase and RethinkDB use dynamic partitioning:\n\n- When a partition exceeds a configured size (e.g., 10 GB), it automatically splits into two\n- When a partition shrinks below a threshold (after deletions), it merges with an adjacent partition\n- The number of partitions adapts to the total data volume",
+        "question": "What is the advantage over fixed partition count?"
+      },
+      "options": [
+        {
+          "id": "ch6-s34-o1",
+          "label": "The number of partitions adapts to actual data volume \u2014 no need to predict the future at creation time",
+          "description": "Small datasets have few partitions (low overhead); large datasets have many (good distribution)"
+        },
+        {
+          "id": "ch6-s34-o2",
+          "label": "Dynamic partitioning is faster because split/merge operations are instant",
+          "description": "Splitting and merging partitions has zero cost"
+        },
+        {
+          "id": "ch6-s34-o3",
+          "label": "Dynamic partitioning eliminates the need for rebalancing",
+          "description": "Partitions automatically move to the right nodes"
+        }
+      ],
+      "correctOptionId": "ch6-s34-o1",
+      "explanation": {
+        "reasoning": "Dynamic partitioning adapts the partition count to the actual data volume. A small dataset has few partitions (low overhead). As data grows, partitions split automatically, maintaining a reasonable partition size. You don't need to predict the future cluster size at creation time. This is analogous to B-trees splitting and merging nodes as data changes.",
+        "tradeoffs": "The downside: an empty database starts with one partition, so all writes initially go to one node until the first split. HBase and MongoDB mitigate this with pre-splitting \u2014 creating initial partitions on an empty database. Also, split/merge operations are not instant and can temporarily impact performance.",
+        "keyTakeaway": "Dynamic partitioning adapts partition count to data volume \u2014 no prediction needed. Partitions split when too large and merge when too small, like B-tree nodes.",
+        "commonMistake": "Forgetting that dynamic partitioning starts with a single partition. On an empty database, all traffic goes to one node until the data is large enough to trigger the first split."
+      }
+    },
+    {
+      "id": "ch6-s35",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "You start a new HBase table with dynamic partitioning. The table is empty. All initial writes go to a single partition on a single node. The other 9 nodes in the cluster are idle.\n\nThis will continue until the single partition grows large enough to split.",
+        "question": "How do you fix this cold-start problem?"
+      },
+      "options": [
+        {
+          "id": "ch6-s35-o1",
+          "label": "Pre-splitting: configure an initial set of partition boundaries on the empty table",
+          "description": "Create multiple partitions from the start, spread across nodes, even before data arrives"
+        },
+        {
+          "id": "ch6-s35-o2",
+          "label": "Use a larger cluster so the single partition isn't a bottleneck",
+          "description": "More powerful hardware handles the initial load on one node"
+        },
+        {
+          "id": "ch6-s35-o3",
+          "label": "Batch-load data all at once to trigger immediate splitting",
+          "description": "Loading a large batch forces the partition to split quickly"
+        }
+      ],
+      "correctOptionId": "ch6-s35-o1",
+      "explanation": {
+        "reasoning": "Pre-splitting creates multiple partitions on an empty table before any data arrives. You specify initial partition boundaries (which requires some knowledge of expected key distribution). These empty partitions are spread across cluster nodes, so writes are distributed from the start. Both HBase and MongoDB support pre-splitting for dynamic partitioning.",
+        "tradeoffs": "Pre-splitting requires knowing enough about the key distribution to choose good initial boundaries. If the boundaries are poorly chosen, some partitions will be empty while others are overloaded. But even imperfect pre-splitting is much better than starting with one partition.",
+        "keyTakeaway": "Pre-splitting mitigates dynamic partitioning's cold-start problem by creating multiple partitions on an empty database, ensuring writes are distributed from the beginning.",
+        "commonMistake": "Starting a dynamically partitioned table without pre-splitting on a large cluster. All initial writes bottleneck on one node until the first split \u2014 potentially for hours depending on write volume."
+      }
+    },
+    {
+      "id": "ch6-s36",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "Cassandra uses a third approach: partitioning proportional to the number of nodes. Each node has a fixed number of partitions (e.g., 256). When a new node joins, it randomly splits 256 existing partitions and takes half of each split.\n\nWith 10 nodes: 2560 partitions. With 11 nodes: 2816 partitions.",
+        "question": "How does this compare to fixed partition count?"
+      },
+      "options": [
+        {
+          "id": "ch6-s36-o1",
+          "label": "Partition count grows with the cluster \u2014 no need to predict the right number upfront, and each partition stays a reasonable size",
+          "description": "More nodes = more partitions, keeping partition sizes stable as the cluster grows"
+        },
+        {
+          "id": "ch6-s36-o2",
+          "label": "It's identical to fixed partition count, just with a different number",
+          "description": "The behavior is the same; only the initial count differs"
+        },
+        {
+          "id": "ch6-s36-o3",
+          "label": "Proportional partitioning eliminates the need for data movement during rebalancing",
+          "description": "New nodes create new partitions without moving existing data"
+        }
+      ],
+      "correctOptionId": "ch6-s36-o1",
+      "explanation": {
+        "reasoning": "With fixed partition count, the partition size grows as total data grows (since partition count is constant). With proportional-to-nodes partitioning, adding a node adds partitions \u2014 keeping the partition size stable. You don't need to predict the future cluster size at creation time. When a new node joins, it splits existing partitions by randomly choosing split points, taking ownership of half the split data.",
+        "tradeoffs": "The random split point selection can produce uneven partitions. Also, splitting a partition requires reading and redistributing its data, which is I/O intensive. Cassandra later moved to a more predictable token-range approach. But the core idea \u2014 partition count proportional to cluster size \u2014 avoids both the prediction problem (fixed) and the cold-start problem (dynamic).",
+        "keyTakeaway": "Proportional-to-nodes partitioning (Cassandra): partition count grows with the cluster. Each node has a fixed number of partitions, so partition sizes stay stable as the cluster grows.",
+        "commonMistake": "Confusing fixed-total-partitions with fixed-per-node-partitions. Fixed total means partition sizes grow with data. Fixed per node means partition count grows with nodes, keeping sizes stable."
+      }
+    },
+    {
+      "id": "ch6-s37",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "Your database supports fully automatic rebalancing \u2014 it detects uneven load and moves partitions between nodes without human intervention.\n\nA node becomes slow due to overload. The automatic rebalancer decides this node is 'overloaded' and starts moving partitions away from it.\n\nThis increases network load on the already-struggling node (it must send partition data over the network while serving requests). The node becomes even slower.",
+        "question": "Why can fully automatic rebalancing be dangerous?"
+      },
+      "options": [
+        {
+          "id": "ch6-s37-o1",
+          "label": "It can cascade: rebalancing an overloaded node adds MORE load (data transfer), making it slower, triggering MORE rebalancing",
+          "description": "Combined with automatic failure detection, it creates a feedback loop that can take down the cluster"
+        },
+        {
+          "id": "ch6-s37-o2",
+          "label": "Automatic rebalancing uses too much CPU for the decision-making algorithm",
+          "description": "The rebalancing algorithm itself is computationally expensive"
+        },
+        {
+          "id": "ch6-s37-o3",
+          "label": "Automatic rebalancing can't account for time-of-day traffic patterns",
+          "description": "It rebalances for current load without predicting future patterns"
+        }
+      ],
+      "correctOptionId": "ch6-s37-o1",
+      "explanation": {
+        "reasoning": "Fully automatic rebalancing combined with automatic failure detection can create dangerous feedback loops. A temporarily overloaded node triggers rebalancing, which adds network I/O to the already-struggling node. This makes it even slower, potentially triggering the failure detector to declare it dead. Now a 'failed' node triggers massive rebalancing, overwhelming other nodes, cascading the failure across the cluster.",
+        "tradeoffs": "Couchbase, Riak, and Voldemort generate a suggested partition reassignment automatically but require an administrator to confirm before executing. This human-in-the-loop approach is slower but prevents cascading failures from automated decisions. It's a trade-off between recovery speed and safety.",
+        "keyTakeaway": "Fully automatic rebalancing can cascade with failure detection: rebalancing an overloaded node adds load, making it slower, triggering more rebalancing. Many systems require human confirmation before executing rebalancing.",
+        "commonMistake": "Enabling fully automatic rebalancing without understanding the interaction with failure detection. The combination can turn a minor node overload into a cluster-wide cascading failure."
+      }
+    },
+    {
+      "id": "ch6-s38",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "request-routing"
+      ],
+      "prompt": {
+        "context": "A client wants to read key 'alice' from your partitioned database. The cluster has 10 nodes, each holding different partitions.\n\nThree possible routing approaches:\n- A: Client connects to any node; that node forwards the request to the correct partition's node\n- B: Client connects to a routing tier (load balancer) that knows which partition is where\n- C: Client itself knows the partition assignment and connects directly to the correct node",
+        "question": "What is this problem \u2014 figuring out which node to contact \u2014 called?"
+      },
+      "options": [
+        {
+          "id": "ch6-s38-o1",
+          "label": "Service discovery / request routing \u2014 determining which node holds a given partition",
+          "description": "The problem of mapping a key to the node that currently stores its partition"
+        },
+        {
+          "id": "ch6-s38-o2",
+          "label": "Load balancing \u2014 distributing requests evenly across nodes",
+          "description": "Ensuring no node gets more requests than others"
+        },
+        {
+          "id": "ch6-s38-o3",
+          "label": "DNS resolution \u2014 translating partition names to network addresses",
+          "description": "Converting logical partition identifiers to IP addresses"
+        }
+      ],
+      "correctOptionId": "ch6-s38-o1",
+      "explanation": {
+        "reasoning": "Request routing (or service discovery for partitions) is the problem of determining which node currently holds a given partition. After rebalancing, partitions may have moved \u2014 clients need an up-to-date mapping. All three approaches (any-node forwarding, routing tier, partition-aware client) solve this problem differently.",
+        "tradeoffs": "This is fundamentally a consensus problem: all participants must agree on the current partition-to-node assignment. Changes during rebalancing must propagate to whoever is making routing decisions. Different databases use different solutions depending on their architecture.",
+        "keyTakeaway": "Request routing is the problem of mapping keys to the node holding their partition. Three approaches: any-node forwarding, dedicated routing tier, or partition-aware client.",
+        "commonMistake": "Confusing request routing with load balancing. Load balancing distributes requests across nodes for even utilization. Request routing ensures each request reaches the CORRECT node for its data."
+      }
+    },
+    {
+      "id": "ch6-s39",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "request-routing"
+      ],
+      "prompt": {
+        "context": "HBase, SolrCloud, and Kafka all use Apache ZooKeeper for request routing:\n\n1. Each node registers itself with ZooKeeper and reports which partitions it owns\n2. ZooKeeper maintains the authoritative partition-to-node mapping\n3. The routing tier (or clients) subscribes to ZooKeeper for changes\n4. When partitions are reassigned (rebalancing), ZooKeeper notifies all subscribers",
+        "question": "Why is ZooKeeper well-suited for this role?"
+      },
+      "options": [
+        {
+          "id": "ch6-s39-o1",
+          "label": "ZooKeeper provides a reliable, consistent coordination service with change notifications \u2014 solving the consensus problem of partition assignment",
+          "description": "It maintains an authoritative mapping and immediately notifies subscribers when it changes"
+        },
+        {
+          "id": "ch6-s39-o2",
+          "label": "ZooKeeper is faster than the databases themselves for key lookups",
+          "description": "ZooKeeper's data store is optimized for fast reads"
+        },
+        {
+          "id": "ch6-s39-o3",
+          "label": "ZooKeeper can store the actual partition data, not just metadata",
+          "description": "ZooKeeper serves as a secondary data store for partitions"
+        }
+      ],
+      "correctOptionId": "ch6-s39-o1",
+      "explanation": {
+        "reasoning": "ZooKeeper is a distributed coordination service that maintains small amounts of metadata reliably and consistently. It tracks which partitions are assigned to which nodes and notifies all subscribers immediately when the mapping changes. This solves the consensus problem: all routers/clients get a consistent, up-to-date view of partition assignments. LinkedIn's Espresso, HBase, SolrCloud, and Kafka all rely on ZooKeeper for this.",
+        "tradeoffs": "ZooKeeper is an additional infrastructure dependency \u2014 it must be deployed, monitored, and maintained separately. Some databases (Cassandra, Riak) avoid this dependency by using a gossip protocol instead, trading consistency for operational simplicity.",
+        "keyTakeaway": "ZooKeeper solves the partition routing problem by maintaining an authoritative, consistent partition-to-node mapping with push notifications to subscribers when assignments change.",
+        "commonMistake": "Thinking ZooKeeper stores application data. It only stores small amounts of metadata (partition assignments, leader elections, configuration). The actual database data stays on the partition nodes."
+      }
+    },
+    {
+      "id": "ch6-s40",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "request-routing"
+      ],
+      "prompt": {
+        "context": "Cassandra and Riak take a different approach: no external coordination service. Instead, they use a gossip protocol:\n\n- Each node communicates directly with other nodes\n- Nodes share partition assignment information through peer-to-peer gossip\n- Any node can answer: 'which node owns key X?'\n- A client can connect to any node, and that node routes the request",
+        "question": "What is the advantage of the gossip approach over ZooKeeper?"
+      },
+      "options": [
+        {
+          "id": "ch6-s40-o1",
+          "label": "No external coordination service dependency \u2014 fewer infrastructure components to deploy and manage",
+          "description": "The database is self-contained; no need to operate a separate ZooKeeper cluster"
+        },
+        {
+          "id": "ch6-s40-o2",
+          "label": "Gossip is always faster than ZooKeeper for routing decisions",
+          "description": "Peer-to-peer communication is inherently faster than centralized coordination"
+        },
+        {
+          "id": "ch6-s40-o3",
+          "label": "Gossip provides stronger consistency guarantees for partition assignment",
+          "description": "All nodes always agree on the exact partition mapping"
+        }
+      ],
+      "correctOptionId": "ch6-s40-o1",
+      "explanation": {
+        "reasoning": "The gossip approach eliminates the dependency on an external coordination service like ZooKeeper. This means fewer components to deploy, configure, monitor, and maintain. Cassandra and Riak can be deployed as standalone clusters without additional infrastructure. Clients connect to any node, which knows the current partition assignment and forwards the request appropriately.",
+        "tradeoffs": "Gossip is eventually consistent \u2014 during rebalancing, different nodes may temporarily have different views of the partition assignment, causing brief misrouting. ZooKeeper provides stronger consistency for the mapping (all subscribers see the same assignment at the same time). The trade-off is operational simplicity vs routing consistency.",
+        "keyTakeaway": "Gossip-based routing (Cassandra, Riak) avoids external dependencies like ZooKeeper, simplifying operations. The trade-off is eventually consistent partition assignment \u2014 brief misrouting during changes.",
+        "commonMistake": "Assuming gossip-based routing is strictly better because it's simpler. ZooKeeper provides stronger consistency for partition assignments, which matters during rebalancing and failover."
+      }
+    },
+    {
+      "id": "ch6-s41",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "request-routing"
+      ],
+      "prompt": {
+        "context": "After a rebalancing operation, partition 7 has moved from Node A to Node B. A client (or routing tier) still has the old mapping and sends a request for partition 7 to Node A.",
+        "question": "Why is keeping the routing information up-to-date fundamentally a consensus/coordination problem?"
+      },
+      "options": [
+        {
+          "id": "ch6-s41-o1",
+          "label": "All routing participants must agree on the current partition assignment \u2014 disagreement causes misrouted requests",
+          "description": "Achieving agreement on the mapping across all clients/routers requires distributed consensus"
+        },
+        {
+          "id": "ch6-s41-o2",
+          "label": "Routing tables are too large to fit in memory, requiring distributed storage",
+          "description": "The size of routing data exceeds single-node capacity"
+        },
+        {
+          "id": "ch6-s41-o3",
+          "label": "Network latency makes it impossible to route requests quickly",
+          "description": "The speed of routing decisions is the fundamental challenge"
+        }
+      ],
+      "correctOptionId": "ch6-s41-o1",
+      "explanation": {
+        "reasoning": "All participants in the routing process (clients, routing tiers, or nodes themselves) must have a consistent view of which partitions are on which nodes. If they disagree \u2014 one thinks partition 7 is on Node A while another thinks it's on Node B \u2014 requests get misrouted. Ensuring agreement across distributed participants is the definition of a consensus problem. ZooKeeper solves this with a consensus protocol; gossip provides eventual agreement.",
+        "tradeoffs": "Strict consensus (ZooKeeper) provides immediate consistency but adds latency and a dependency. Gossip provides eventual consistency \u2014 during the brief period after rebalancing, some requests may be misrouted. Most databases handle this by having the incorrect node forward the request to the correct one, masking the temporary inconsistency.",
+        "keyTakeaway": "Request routing is fundamentally a consensus problem: all participants must agree on the current partition-to-node mapping. Different databases solve this with different consistency guarantees.",
+        "commonMistake": "Thinking request routing is a simple lookup problem. In a dynamic system where partitions move between nodes, keeping the routing information consistent across all participants is a distributed coordination challenge."
+      }
+    },
+    {
+      "id": "ch6-s42",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "request-routing"
+      ],
+      "prompt": {
+        "context": "Many distributed databases support a 'partition-aware' client library. The client maintains its own copy of the partition assignment map and connects directly to the correct node \u2014 no intermediate routing tier.\n\nExamples: Cassandra drivers, MongoDB drivers with shard awareness.",
+        "question": "What is the advantage of a partition-aware client?"
+      },
+      "options": [
+        {
+          "id": "ch6-s42-o1",
+          "label": "Eliminates the extra network hop through a routing tier \u2014 the client connects directly to the correct node",
+          "description": "Lower latency and fewer components: client \u2192 correct node (1 hop instead of 2)"
+        },
+        {
+          "id": "ch6-s42-o2",
+          "label": "The client can cache all partition data locally for offline access",
+          "description": "Partition-aware clients work without network connectivity"
+        },
+        {
+          "id": "ch6-s42-o3",
+          "label": "The client can modify partition assignments directly",
+          "description": "Clients with partition awareness can trigger rebalancing"
+        }
+      ],
+      "correctOptionId": "ch6-s42-o1",
+      "explanation": {
+        "reasoning": "A partition-aware client maintains its own copy of the partition-to-node mapping and connects directly to the correct node. This eliminates the extra network hop through a routing tier (load balancer or proxy), reducing latency. The client subscribes to mapping updates (via ZooKeeper or gossip) to stay current after rebalancing.",
+        "tradeoffs": "The trade-off is client complexity \u2014 the client library must handle partition discovery, maintain the mapping, handle node failures and rebalancing, and reconnect when mappings change. This is more complex than connecting to a simple load balancer, but the latency savings are significant for high-throughput applications.",
+        "keyTakeaway": "Partition-aware clients connect directly to the correct node (no routing tier hop), reducing latency at the cost of more complex client-side logic.",
+        "commonMistake": "Using a simple round-robin load balancer in front of a partitioned database. The load balancer doesn't know which node holds which partition, so requests often land on the wrong node and need forwarding \u2014 adding unnecessary latency."
+      }
+    },
+    {
+      "id": "ch6-s43",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "request-routing",
+        "rebalancing"
+      ],
+      "prompt": {
+        "context": "You're comparing the overall architectural approaches of several databases:\n\n- HBase: ZooKeeper for coordination, dynamic partitioning, key-range\n- Cassandra: Gossip protocol, proportional-to-nodes partitioning, hash-based\n- Elasticsearch: ZooKeeper-less (own coordination), fixed partition count, term-based routing\n- MongoDB: Config servers (similar role to ZooKeeper), dynamic partitioning, choice of hash or range",
+        "question": "What observation can you make about these databases' partitioning architectures?"
+      },
+      "options": [
+        {
+          "id": "ch6-s43-o1",
+          "label": "Each database makes different trade-offs across partitioning strategy, rebalancing, and routing \u2014 there is no single 'best' combination",
+          "description": "The choices are interconnected but each database optimizes for different workloads and operational models"
+        },
+        {
+          "id": "ch6-s43-o2",
+          "label": "They all converge on the same architecture \u2014 the differences are superficial",
+          "description": "Under the hood, all partitioned databases work the same way"
+        },
+        {
+          "id": "ch6-s43-o3",
+          "label": "Newer databases always use better approaches than older ones",
+          "description": "The architectures represent an evolutionary progression from worst to best"
+        }
+      ],
+      "correctOptionId": "ch6-s43-o1",
+      "explanation": {
+        "reasoning": "Each database makes a unique combination of trade-offs: key-range vs hash partitioning (range scans vs even distribution), fixed vs dynamic vs proportional rebalancing (simplicity vs adaptability), ZooKeeper vs gossip routing (consistency vs operational simplicity). These choices are driven by the target workload, consistency requirements, and operational philosophy. There is no universally best combination.",
+        "tradeoffs": "HBase optimizes for range scans (BigTable lineage). Cassandra optimizes for write throughput and operational simplicity (no ZooKeeper). Elasticsearch optimizes for search workloads (scatter/gather is the normal pattern). MongoDB provides flexibility (choose hash or range). Understanding these trade-offs helps you choose the right database for your specific needs.",
+        "keyTakeaway": "Partitioning, rebalancing, and routing strategies are interconnected trade-offs. Each database makes different choices optimized for different workloads \u2014 there is no one-size-fits-all solution.",
+        "commonMistake": "Choosing a database based on popularity without understanding its partitioning trade-offs. A database optimized for range scans (HBase) may be a poor fit for a workload dominated by point lookups on hash-distributed keys."
+      }
+    }
+  ]
+}

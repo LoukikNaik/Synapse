@@ -1,0 +1,610 @@
+{
+  "id": "interview-trie",
+  "title": "Trie \u2014 Interview Patterns",
+  "description": "Trie data structure patterns for interviews. Covers basic operations, design choices, wildcard search, and when to use tries vs alternatives.",
+  "domain": "Data Structures & Algorithms",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "trie-basics",
+      "name": "Trie Basics",
+      "description": "Insert, search, startsWith \u2014 the core operations"
+    },
+    {
+      "id": "trie-design",
+      "name": "Design Choices",
+      "description": "Array vs hashmap children, memory trade-offs, TrieNode structure"
+    },
+    {
+      "id": "wildcard-search",
+      "name": "Wildcard & Pattern Search",
+      "description": "Searching with '.', regex matching, DFS on trie"
+    },
+    {
+      "id": "trie-applications",
+      "name": "Applications",
+      "description": "Autocomplete, word break, longest prefix, IP routing"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "tr-s01",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "trie-basics"
+      ],
+      "prompt": {
+        "context": "You're explaining the trie data structure to a teammate.",
+        "question": "What does each node in a trie represent?"
+      },
+      "options": [
+        {
+          "id": "tr-s01-o1",
+          "label": "Each node represents a character (or rather, each edge represents a character). A path from root to a node spells out a prefix.",
+          "description": "The root is empty. Each level adds one character. The path root\u2192a\u2192p\u2192p\u2192l\u2192e spells 'apple'."
+        },
+        {
+          "id": "tr-s01-o2",
+          "label": "Each node represents a complete word stored in the trie",
+          "description": "Words are stored one per node at each level"
+        },
+        {
+          "id": "tr-s01-o3",
+          "label": "Each node represents a hash bucket for a group of words sharing a common length",
+          "description": "Nodes partition words by their length"
+        }
+      ],
+      "correctOptionId": "tr-s01-o1",
+      "explanation": {
+        "reasoning": "In a trie, each edge represents a character, and each node represents the prefix formed by the path from root to that node. The root represents the empty string. A path root\u2192'a'\u2192'p'\u2192'p' represents the prefix 'app'. Nodes may be marked as 'end of word' to indicate that the prefix at that node is a complete word in the dictionary.",
+        "tradeoffs": "Tries trade space for time: they can use significant memory (especially with sparse children) but provide O(m) lookup where m is the word length, independent of how many words are stored. This is unlike hash tables where collisions can degrade performance.",
+        "keyTakeaway": "Trie nodes represent prefixes (character by character from root). Each edge is a character. Paths from root spell out strings. End-of-word markers distinguish complete words from mere prefixes.",
+        "commonMistake": "Thinking each node stores a full word. Nodes store one character (or technically, edges do). The word is formed by concatenating characters along the path from root to the node."
+      }
+    },
+    {
+      "id": "tr-s02",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "trie-basics",
+        "trie-design"
+      ],
+      "prompt": {
+        "context": "You've inserted 'apple' into a trie. Now you search for 'app'.",
+        "question": "What distinguishes 'search' from 'startsWith' in a trie?"
+      },
+      "options": [
+        {
+          "id": "tr-s02-o1",
+          "label": "search('app') returns False (node exists but isn't marked as end-of-word). startsWith('app') returns True (the prefix path exists).",
+          "description": "search requires the is_end flag to be True at the last character's node. startsWith only checks if the path exists."
+        },
+        {
+          "id": "tr-s02-o2",
+          "label": "Both return True \u2014 'app' is a substring of 'apple' so it exists in the trie",
+          "description": "Any substring of an inserted word is found by search"
+        },
+        {
+          "id": "tr-s02-o3",
+          "label": "Both return False \u2014 'app' was never inserted",
+          "description": "Only exact inserted words are findable in a trie"
+        }
+      ],
+      "correctOptionId": "tr-s02-o1",
+      "explanation": {
+        "reasoning": "When you insert 'apple', the trie creates nodes a\u2192p\u2192p\u2192l\u2192e and marks the 'e' node as is_end=True. The path a\u2192p\u2192p exists (it's a prefix of 'apple'), so startsWith('app') returns True. But the second 'p' node has is_end=False (only 'apple' was inserted, not 'app'), so search('app') returns False. search = path exists AND is_end is True. startsWith = path exists (is_end doesn't matter).",
+        "tradeoffs": "This distinction is fundamental to trie operations. If you also insert 'app', then both search('app') and startsWith('app') return True, because now the second 'p' node has is_end=True.",
+        "keyTakeaway": "search = path exists + is_end flag is True. startsWith = path exists (regardless of is_end). The is_end boolean is what distinguishes complete words from mere prefixes.",
+        "commonMistake": "Implementing search without checking the is_end flag, which would make search behave identically to startsWith \u2014 returning True for any prefix of any inserted word."
+      }
+    },
+    {
+      "id": "tr-s03",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-design"
+      ],
+      "prompt": {
+        "context": "You're implementing a TrieNode and need to choose how to store children:\n\nOption A: children = [None] * 26  (array of size 26 for lowercase letters)\nOption B: children = {}  (hashmap from character to TrieNode)",
+        "question": "When should you use array vs hashmap for trie children?"
+      },
+      "options": [
+        {
+          "id": "tr-s03-o1",
+          "label": "Array[26] when input is only lowercase letters (fast, fixed memory per node). HashMap when character set is large or unknown (unicode, mixed case).",
+          "description": "Array gives O(1) lookup with fixed 26-pointer overhead. HashMap adapts to sparse character sets but has overhead per entry."
+        },
+        {
+          "id": "tr-s03-o2",
+          "label": "Always use HashMap \u2014 it's strictly better because it doesn't waste space on unused characters",
+          "description": "HashMap never allocates space for characters that aren't used"
+        },
+        {
+          "id": "tr-s03-o3",
+          "label": "Always use Array \u2014 it's strictly faster and the memory difference is negligible",
+          "description": "26 pointers per node is trivial memory"
+        }
+      ],
+      "correctOptionId": "tr-s03-o1",
+      "explanation": {
+        "reasoning": "Array[26] is ideal for lowercase-only English letters: O(1) child access via index (children[c - 'a']), fixed 26-pointer overhead per node. For a deep trie with many nodes, most slots may be null (sparse), wasting memory. HashMap is better when the character set is large (unicode), unpredictable, or sparse \u2014 it only allocates for characters that actually exist. In interviews with lowercase-only constraints, Array[26] is the standard choice.",
+        "tradeoffs": "Array: faster access (no hashing), predictable memory, but wastes space if most of 26 slots are unused. HashMap: space-efficient for sparse nodes, handles any character set, but has hashing overhead and higher constant factors. For typical interview problems (lowercase English), Array[26] is preferred.",
+        "keyTakeaway": "Lowercase only \u2192 Array[26]. Variable/large character set \u2192 HashMap. In interviews, default to Array[26] unless the problem involves non-lowercase characters.",
+        "commonMistake": "Using Array[26] when the problem includes uppercase, digits, or special characters. Array size would need to be 128 (ASCII) or larger, wasting significant space. Switch to HashMap for diverse character sets."
+      }
+    },
+    {
+      "id": "tr-s04",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "trie-basics"
+      ],
+      "prompt": {
+        "context": "You're analyzing the time complexity of trie operations.",
+        "question": "What is the time complexity of insert and search in a trie?"
+      },
+      "options": [
+        {
+          "id": "tr-s04-o1",
+          "label": "O(m) where m is the length of the word being inserted or searched \u2014 independent of the number of words in the trie",
+          "description": "You traverse at most m nodes (one per character). The trie could contain millions of words and it wouldn't affect the time for one operation."
+        },
+        {
+          "id": "tr-s04-o2",
+          "label": "O(n) where n is the total number of words in the trie",
+          "description": "You may need to compare against all stored words"
+        },
+        {
+          "id": "tr-s04-o3",
+          "label": "O(m log n) \u2014 binary search at each level of the trie",
+          "description": "Each character requires a logarithmic search among children"
+        }
+      ],
+      "correctOptionId": "tr-s04-o1",
+      "explanation": {
+        "reasoning": "Insert: traverse character by character, creating nodes as needed. Each character is one step \u2192 O(m). Search: traverse character by character, checking if each child exists. Each character is one step \u2192 O(m). The number of words already in the trie (n) doesn't affect the time \u2014 you only follow the path for your specific word. This is the key advantage of tries: predictable, word-length-dependent performance.",
+        "tradeoffs": "Compare with hash table: also O(m) average case for strings (need to hash all m characters), but O(m*n) worst case with collisions. Trie is O(m) worst case guaranteed. However, tries typically use more memory than hash tables due to the pointer overhead per character.",
+        "keyTakeaway": "Trie insert and search are O(m) where m = word length. This is independent of n (number of stored words). The key advantage is guaranteed O(m) worst case.",
+        "commonMistake": "Saying trie search is O(log n) by analogy with binary search trees. Tries aren't balanced trees with comparisons \u2014 they follow a direct path character by character."
+      }
+    },
+    {
+      "id": "tr-s05",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-design"
+      ],
+      "prompt": {
+        "context": "You're considering the worst-case space complexity of a trie storing n words with an average length of m.",
+        "question": "What determines the space usage of a trie?"
+      },
+      "options": [
+        {
+          "id": "tr-s05-o1",
+          "label": "O(total characters across all words * alphabet size) in the worst case \u2014 each character creates a node with space for all possible children. Shared prefixes reduce this significantly.",
+          "description": "Worst case (no shared prefixes): each word creates m new nodes, each node has space for 26 children pointers. Shared prefixes collapse common paths."
+        },
+        {
+          "id": "tr-s05-o2",
+          "label": "Always O(n * m) regardless of prefix sharing",
+          "description": "Every word occupies its own space with no savings from shared prefixes"
+        },
+        {
+          "id": "tr-s05-o3",
+          "label": "O(n) \u2014 one node per word stored in the trie",
+          "description": "Each word is a single node with the full string stored"
+        }
+      ],
+      "correctOptionId": "tr-s05-o1",
+      "explanation": {
+        "reasoning": "Each unique character position creates a node. With Array[26] children, each node uses 26 pointers + metadata. Worst case (no shared prefixes): sum of all word lengths = total nodes. If words share prefixes ('apple', 'app', 'application'), common prefix nodes are shared, saving space. Space = O(number of nodes * children_size). With HashMap children, space is proportional to actual children, not alphabet size.",
+        "tradeoffs": "Tries can use significantly less space than storing all words separately when words share many prefixes (common in dictionaries, URLs, IP addresses). But for random strings with no shared prefixes, a trie uses more space than a simple list of strings due to the pointer overhead per character.",
+        "keyTakeaway": "Trie space depends on total unique character positions (shared prefixes save space) and alphabet size (affects per-node overhead). Best case: many shared prefixes \u2192 compact. Worst case: no shared prefixes \u2192 expensive.",
+        "commonMistake": "Assuming tries always save space. For datasets with few shared prefixes and large alphabets, tries can use MORE space than simple string storage."
+      }
+    },
+    {
+      "id": "tr-s06",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-basics"
+      ],
+      "prompt": {
+        "context": "You need to implement delete(word) from a trie. Simply setting is_end = False isn't always sufficient \u2014 you might leave orphan nodes that waste space.",
+        "question": "How do you properly delete a word from a trie?"
+      },
+      "options": [
+        {
+          "id": "tr-s06-o1",
+          "label": "Recursive bottom-up: after un-marking is_end, check if the node has any children. If not (and it's not end-of-word for another word), delete it. Recurse back up, removing empty nodes.",
+          "description": "Walk to the end of the word, un-mark, then clean up leaf nodes bottom-up as long as they have no children and aren't end-of-word markers."
+        },
+        {
+          "id": "tr-s06-o2",
+          "label": "Just set is_end = False \u2014 orphan nodes don't affect correctness",
+          "description": "Leaving empty nodes is fine since search and insert still work correctly"
+        },
+        {
+          "id": "tr-s06-o3",
+          "label": "Rebuild the entire trie without the deleted word",
+          "description": "Remove all words, re-insert everything except the deleted word"
+        }
+      ],
+      "correctOptionId": "tr-s06-o1",
+      "explanation": {
+        "reasoning": "Proper deletion: (1) Navigate to the last character of the word. (2) Un-mark is_end. (3) If this node has no children, it's a leaf that exists only for the deleted word \u2014 remove it. (4) Go back up to the parent and repeat: if the parent now has no children and isn't is_end for another word, remove it too. Stop when you reach a node that has other children or is is_end for another word. Example: trie has 'apple' and 'app'. Deleting 'apple' un-marks 'e' node and removes nodes 'e' and 'l' (they have no other purpose). Node 'p' (second p) stays because it's is_end for 'app'.",
+        "tradeoffs": "Setting is_end = False only (option 2) is acceptable in many practical implementations \u2014 it's correct (search/insert still work) and simpler. But it wastes memory over time as deleted words leave orphan chains. Full cleanup is needed for memory-sensitive applications.",
+        "keyTakeaway": "Trie deletion: un-mark is_end, then recursively remove childless, non-end nodes bottom-up. Stop at the first node that has other children or is end-of-word for another word.",
+        "commonMistake": "Deleting too aggressively \u2014 removing nodes that are shared with other words. Always check: does this node have children? Is it is_end for another word? Only delete if both are false."
+      }
+    },
+    {
+      "id": "tr-s07",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "trie-design"
+      ],
+      "prompt": {
+        "context": "You're implementing a TrieNode class.",
+        "question": "What are the two essential fields every TrieNode must have?"
+      },
+      "options": [
+        {
+          "id": "tr-s07-o1",
+          "label": "children (map or array of child TrieNodes) and is_end (boolean marking whether this node completes a word)",
+          "description": "Children provide the trie structure (character transitions). is_end distinguishes complete words from mere prefixes."
+        },
+        {
+          "id": "tr-s07-o2",
+          "label": "value (the character this node represents) and parent (pointer to parent node)",
+          "description": "Each node stores its character and a back-pointer for traversal"
+        },
+        {
+          "id": "tr-s07-o3",
+          "label": "word (the full word ending at this node) and count (number of words passing through this node)",
+          "description": "Nodes store the complete word and frequency data"
+        }
+      ],
+      "correctOptionId": "tr-s07-o1",
+      "explanation": {
+        "reasoning": "The minimal TrieNode needs: (1) children \u2014 either dict/array mapping characters to child nodes, providing the structure for character-by-character traversal. (2) is_end \u2014 a boolean indicating whether the path from root to this node forms a complete word in the dictionary. Without is_end, you can't distinguish 'app' (a prefix of 'apple') from 'app' (an actual word). Storing the character value is optional since it's implicit in the parent's children mapping.",
+        "tradeoffs": "You can add extra fields for specific problems: count (for frequency), word (to avoid rebuilding the word from path), prefix_count (for counting words with a given prefix). But the two essential fields are children and is_end.",
+        "keyTakeaway": "TrieNode = children (character \u2192 child node mapping) + is_end (boolean). Everything else is optional. The character itself is typically implicit in the parent's mapping.",
+        "commonMistake": "Storing the character in the node (e.g., self.char = 'a'). This is redundant \u2014 the character is determined by which key in the parent's children map points to this node. Storing it wastes memory across millions of nodes."
+      }
+    },
+    {
+      "id": "tr-s08",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "wildcard-search"
+      ],
+      "prompt": {
+        "context": "You're implementing a word dictionary that supports search with '.' as a wildcard matching any single character. (LeetCode 211: Design Add and Search Words Data Structure)\n\nFor example: addWord('bad'), search('b.d') \u2192 True, search('..d') \u2192 True",
+        "question": "How do you handle the '.' wildcard during trie search?"
+      },
+      "options": [
+        {
+          "id": "tr-s08-o1",
+          "label": "When you encounter '.', try ALL children of the current node recursively (DFS/backtracking). If any path leads to a match, return True.",
+          "description": "For '.' at position i, branch into every existing child and recursively search the remaining pattern. This is essentially DFS with backtracking on the trie."
+        },
+        {
+          "id": "tr-s08-o2",
+          "label": "Replace '.' with each letter a-z and search for all 26 possible words",
+          "description": "Generate all concrete words by replacing wildcards, then search each one"
+        },
+        {
+          "id": "tr-s08-o3",
+          "label": "Skip the '.' position entirely and match the remaining characters against the trie",
+          "description": "Wildcards are zero-width \u2014 they don't consume a character in the trie"
+        }
+      ],
+      "correctOptionId": "tr-s08-o1",
+      "explanation": {
+        "reasoning": "When the current character in the pattern is '.', it can match ANY character. So you iterate over all children of the current trie node and recursively search the remaining pattern from each child. If any branch returns True, the overall search returns True. For concrete characters, you follow the specific child as normal. This is DFS with branching at wildcard positions.",
+        "tradeoffs": "Worst case (all dots like '....'): you explore the entire trie \u2014 O(total nodes). With mostly concrete characters, performance is close to O(m). This is why tries are better than hash tables for wildcard search \u2014 hash tables would need to enumerate all possible words (26^dots combinations).",
+        "keyTakeaway": "Wildcard '.' in trie search: branch into all children at that position, recurse on each. DFS with backtracking. Tries make this efficient because you only explore existing branches.",
+        "commonMistake": "Generating all possible concrete words by replacing '.' with a-z (option 2). This creates 26^k possibilities for k wildcards, which is exponentially worse than the trie DFS approach that only explores existing branches."
+      }
+    },
+    {
+      "id": "tr-s09",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "You need to implement autocomplete: given a prefix, return all words in the dictionary that start with that prefix.",
+        "question": "How does a trie efficiently support autocomplete?"
+      },
+      "options": [
+        {
+          "id": "tr-s09-o1",
+          "label": "Navigate to the prefix's end node in O(m) time, then DFS from that node to collect all words in the subtrie",
+          "description": "Finding the prefix node is O(m). Collecting all words below it visits only relevant nodes \u2014 no wasted work on unrelated words."
+        },
+        {
+          "id": "tr-s09-o2",
+          "label": "Search every word in the trie and filter those starting with the prefix",
+          "description": "Iterate all stored words and check each one's prefix"
+        },
+        {
+          "id": "tr-s09-o3",
+          "label": "Use binary search on a sorted list of all trie words to find the prefix range",
+          "description": "Sort all words and binary search for the prefix boundaries"
+        }
+      ],
+      "correctOptionId": "tr-s09-o1",
+      "explanation": {
+        "reasoning": "Navigate the trie following the prefix characters \u2014 O(m) where m is prefix length. You arrive at the node representing the last character of the prefix. From there, DFS the entire subtrie, collecting words where is_end=True. You only visit nodes that extend the prefix \u2014 no wasted work. The number of results is bounded by the words in the subtrie.",
+        "tradeoffs": "To limit results (top-k), you can maintain a count or frequency at each node and prioritize high-frequency words. For production autocomplete, tries are often combined with ranking (frequency, recency) and limited to top-k results for performance.",
+        "keyTakeaway": "Autocomplete with trie: navigate to prefix node in O(m), then DFS subtrie to collect all matching words. Efficient because you skip all non-matching branches.",
+        "commonMistake": "Doing a full scan of all stored words (option 2). This is O(n * m) where n is the total number of words. The trie approach is O(prefix_length + results) \u2014 much faster for large dictionaries."
+      }
+    },
+    {
+      "id": "tr-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "Word Break problem (LC 139): Given a string s and a dictionary of words, determine if s can be segmented into one or more dictionary words.\n\nExample: s = 'leetcode', dict = ['leet', 'code'] \u2192 True",
+        "question": "How can a trie help solve Word Break?"
+      },
+      "options": [
+        {
+          "id": "tr-s10-o1",
+          "label": "Build a trie from the dictionary. Use DP where dp[i] = True if s[0:i] can be segmented. For each position i where dp[i] is True, walk the trie from s[i] to find all dictionary words starting there.",
+          "description": "The trie efficiently finds all dictionary words starting at any position in s, avoiding repeated hash lookups for each possible word length."
+        },
+        {
+          "id": "tr-s10-o2",
+          "label": "Insert the input string into a trie and check if it can be decomposed into paths matching dictionary words",
+          "description": "The string goes into the trie, and dictionary words define valid sub-paths"
+        },
+        {
+          "id": "tr-s10-o3",
+          "label": "A trie doesn't help \u2014 you need dynamic programming regardless, and a HashSet is simpler for lookups",
+          "description": "Trie adds complexity without improving the DP solution"
+        }
+      ],
+      "correctOptionId": "tr-s10-o1",
+      "explanation": {
+        "reasoning": "Build a trie from dictionary words. DP array: dp[i] = can s[0..i] be segmented? For each position i where dp[i] is True, traverse the trie starting from s[i]. As you walk the trie character by character, whenever you hit an is_end node (found a dictionary word ending at position j), set dp[j] = True. This is efficient because the trie traversal handles all word lengths simultaneously \u2014 you don't need to check each possible word length separately.",
+        "tradeoffs": "A HashSet-based approach (for each i where dp[i]=True, check all possible substrings s[i:j] against the set) is simpler and works fine for most cases. The trie shines when dictionary words share many prefixes or when the average word length is long \u2014 the trie prunes impossible prefixes early.",
+        "keyTakeaway": "Word Break + Trie: DP with trie traversal from each valid position. The trie efficiently finds all dictionary words starting at each index without checking every possible length.",
+        "commonMistake": "Over-engineering: for most Word Break instances, a HashSet is sufficient and simpler. Use a trie when the dictionary is very large with many shared prefixes, or when you need to support additional prefix operations."
+      }
+    },
+    {
+      "id": "tr-s11",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "Longest Common Prefix (LC 14): Find the longest common prefix among an array of strings.\n\nAlternative to comparing strings pairwise: insert all strings into a trie.",
+        "question": "How does the trie approach find the longest common prefix?"
+      },
+      "options": [
+        {
+          "id": "tr-s11-o1",
+          "label": "Walk from the root following the single-child path. Stop when a node has multiple children or is marked as end-of-word. The path traversed is the longest common prefix.",
+          "description": "As long as each node has exactly one child and isn't a word end, all strings share that character. Branching means the prefix ends."
+        },
+        {
+          "id": "tr-s11-o2",
+          "label": "Find the deepest node in the trie \u2014 the path to it is the longest common prefix",
+          "description": "The longest path in the trie represents the common prefix"
+        },
+        {
+          "id": "tr-s11-o3",
+          "label": "Count the number of strings passing through each node and find the deepest node with count = n",
+          "description": "Nodes visited by all n strings define the common prefix"
+        }
+      ],
+      "correctOptionId": "tr-s11-o1",
+      "explanation": {
+        "reasoning": "After inserting all strings into a trie, the longest common prefix is the path from root where every node has exactly ONE child and is NOT the end of any word. The moment you hit a node with 2+ children (strings diverge) or is_end=True (the shortest string ends here), the common prefix ends. Walk from root following single children until branching occurs.",
+        "tradeoffs": "This is actually overkill for the LCP problem \u2014 the simpler approach (compare character by character across all strings) is O(S) where S is the total characters, same as building the trie. But the trie approach is useful when you need to answer multiple prefix queries on the same dataset.",
+        "keyTakeaway": "LCP via trie: walk from root along single-child nodes until branching or end-of-word. Useful conceptually, but the vertical scanning approach is simpler for one-off LCP queries.",
+        "commonMistake": "Building a trie just for one LCP query \u2014 it's unnecessary overhead. Use the trie approach when the dataset is queried repeatedly for prefix operations."
+      }
+    },
+    {
+      "id": "tr-s12",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "trie-applications",
+        "wildcard-search"
+      ],
+      "prompt": {
+        "context": "Word Search II (LC 212): Given an m\u00d7n board of characters and a list of words, find all words that can be formed by sequentially adjacent cells (up/down/left/right). Each cell may only be used once per word.\n\nApproach A: For each word in the list, run backtracking on the board to check if it exists.\nApproach B: Build a trie from the word list, then run backtracking on the board guided by the trie.",
+        "question": "Why is the trie approach significantly better?"
+      },
+      "options": [
+        {
+          "id": "tr-s12-o1",
+          "label": "The trie lets you search for ALL words simultaneously during a single backtracking pass. If a prefix doesn't exist in the trie, you prune that entire branch \u2014 avoiding redundant exploration.",
+          "description": "Without trie: k separate backtracking passes (one per word). With trie: one pass checks all words at once, and dead prefixes are pruned immediately."
+        },
+        {
+          "id": "tr-s12-o2",
+          "label": "The trie makes each individual word search faster by providing O(1) character lookups",
+          "description": "Trie speeds up individual character comparisons during backtracking"
+        },
+        {
+          "id": "tr-s12-o3",
+          "label": "The trie reduces the board traversal from O(m*n) to O(sqrt(m*n)) per word",
+          "description": "Trie-guided search skips over large portions of the grid"
+        }
+      ],
+      "correctOptionId": "tr-s12-o1",
+      "explanation": {
+        "reasoning": "Without trie: for each of k words, start a new backtracking from every cell. Total: O(k * m * n * 4^L). With trie: build a trie from all k words. Start backtracking from each cell ONCE, following the trie structure. At each cell, check if the current path is a prefix in the trie \u2014 if not, prune immediately. If the path reaches an is_end node, you've found a word. One backtracking pass checks all k words simultaneously.",
+        "tradeoffs": "Build time for the trie is O(k * L) where L is average word length \u2014 negligible compared to the backtracking savings. Memory for the trie is O(k * L). The pruning benefit is enormous: if no word starts with 'xyz', backtracking from any 'xyz...' path is cut immediately, saving exponential work.",
+        "keyTakeaway": "Word Search II: trie lets you search for all words in a single backtracking pass, with prefix pruning. Without trie, you'd need a separate backtracking pass per word.",
+        "commonMistake": "Using a HashSet of words instead of a trie. A HashSet can check if a complete word exists, but can't tell you whether a PREFIX exists \u2014 you lose the pruning benefit that makes the solution efficient."
+      }
+    },
+    {
+      "id": "tr-s13",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-design",
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "You want to efficiently count how many stored words have a given prefix. For example, if the trie contains ['apple', 'app', 'application', 'banana'], countPrefix('app') should return 3.",
+        "question": "What do you store on each trie node to support this?"
+      },
+      "options": [
+        {
+          "id": "tr-s13-o1",
+          "label": "A prefix_count field on each node, incremented during every insert that passes through the node. countPrefix(prefix) navigates to the prefix node and returns its prefix_count.",
+          "description": "Each insert increments the count on every node along its path. The count at any node = number of words that have the prefix represented by that node."
+        },
+        {
+          "id": "tr-s13-o2",
+          "label": "Store nothing extra \u2014 count by DFS from the prefix node, counting is_end nodes",
+          "description": "Traverse the subtrie and count all end-of-word markers"
+        },
+        {
+          "id": "tr-s13-o3",
+          "label": "A sorted list of all words at each node for binary search counting",
+          "description": "Store word lists at each node for efficient counting"
+        }
+      ],
+      "correctOptionId": "tr-s13-o1",
+      "explanation": {
+        "reasoning": "Augment each TrieNode with a prefix_count integer, initialized to 0. During insert, as you traverse/create nodes for each character, increment prefix_count on every node along the path. To count words with prefix 'app': navigate to the 'p' node (second p), return its prefix_count. This is O(m) for the query. For delete, decrement counts along the path.",
+        "tradeoffs": "The DFS approach (option 2) also works but is O(k) where k is the number of matching words \u2014 you must traverse the entire subtrie. With prefix_count, the query is O(m) regardless of how many words match. The tradeoff is slightly more work during insert (incrementing counts).",
+        "keyTakeaway": "To count words with a prefix in O(m) time: maintain a prefix_count on each node, incremented during insert. Navigate to prefix node and read its count.",
+        "commonMistake": "Forgetting to decrement prefix_count during delete operations. If you delete a word without updating counts, the prefix counts become stale and incorrect."
+      }
+    },
+    {
+      "id": "tr-s14",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "You're deciding whether to use a HashSet or a Trie for a dictionary lookup problem. The only operation is exact word search \u2014 no prefix queries, no wildcards.",
+        "question": "When is a HashSet better than a Trie for this use case?"
+      },
+      "options": [
+        {
+          "id": "tr-s14-o1",
+          "label": "For exact lookups only, a HashSet is simpler and typically faster \u2014 O(m) average with lower constant factors, no trie node overhead per character",
+          "description": "HashSet: hash the word, check the bucket. No per-character node allocation, better cache locality."
+        },
+        {
+          "id": "tr-s14-o2",
+          "label": "A Trie is always better because it's O(m) worst case while HashSet is O(n) worst case",
+          "description": "Trie's worst case is strictly better than HashSet's"
+        },
+        {
+          "id": "tr-s14-o3",
+          "label": "They're equivalent in all cases \u2014 use whichever you're more familiar with",
+          "description": "Performance and memory usage are the same"
+        }
+      ],
+      "correctOptionId": "tr-s14-o1",
+      "explanation": {
+        "reasoning": "For exact lookups only: HashSet typically wins. Both are O(m) average case (HashSet hashes m characters, Trie traverses m nodes). But HashSet has lower constant factors (no per-character node allocation), better memory locality (strings are contiguous vs trie nodes scattered in memory), and simpler implementation. Trie's advantages (prefix search, wildcard matching, ordered iteration) are irrelevant when you only need exact lookup.",
+        "tradeoffs": "Trie is better when you need: prefix matching (startsWith), wildcard search, autocomplete, longest common prefix, lexicographic ordering, or other prefix-based operations. For pure key-value lookup, HashSet/HashMap is the better tool.",
+        "keyTakeaway": "Use the right tool: HashSet for exact lookups only (simpler, faster). Trie when you need prefix operations, wildcards, or ordered traversal. Don't over-engineer with a trie when a set suffices.",
+        "commonMistake": "Using a trie for every string lookup problem. Tries are specialized for prefix operations. For simple 'does this word exist?' queries, a HashSet is simpler and usually faster."
+      }
+    },
+    {
+      "id": "tr-s15",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "Maximum XOR of Two Numbers (LC 421): Given an array of integers, find the maximum XOR of any two numbers.\n\nThe trick: build a bitwise trie where each 'word' is the binary representation of a number (32 bits, from MSB to LSB). Each node has at most 2 children: 0 and 1.",
+        "question": "How do you use the bitwise trie to find the maximum XOR for a given number?"
+      },
+      "options": [
+        {
+          "id": "tr-s15-o1",
+          "label": "For each bit of the number, greedily try to go to the OPPOSITE bit in the trie (to make that XOR bit 1). If the opposite branch doesn't exist, take the same bit.",
+          "description": "XOR is maximized when bits differ. At each level, prefer the opposite bit (gives 1 in XOR). Greedy from MSB to LSB gives the global maximum."
+        },
+        {
+          "id": "tr-s15-o2",
+          "label": "For each number, XOR it with every leaf value in the trie and track the maximum",
+          "description": "Brute force XOR against all stored numbers using the trie for enumeration"
+        },
+        {
+          "id": "tr-s15-o3",
+          "label": "Find the two numbers that are farthest apart in the trie (longest different path) \u2014 their XOR is maximum",
+          "description": "Distance in the trie corresponds to XOR value"
+        }
+      ],
+      "correctOptionId": "tr-s15-o1",
+      "explanation": {
+        "reasoning": "XOR bit is 1 when the two bits differ. To maximize XOR, at each bit position (from MSB to LSB), you want the bits to differ. For each number, traverse the trie bit by bit: at each level, try to go to the OPPOSITE bit (if current bit is 1, go to 0-child). If the opposite exists, take it (XOR bit = 1). If not, take the same bit (XOR bit = 0). After 32 bits, you've found the number in the trie that maximizes XOR with the current number. Do this for all numbers, track the global max.",
+        "tradeoffs": "Brute force: O(n^2) comparing all pairs. Bitwise trie: O(32n) = O(n) \u2014 build trie in O(32n), then for each number, find max XOR in O(32) using the greedy walk. This is a dramatic improvement for large n.",
+        "keyTakeaway": "Maximum XOR via trie: store all numbers as 32-bit paths. For each number, greedily walk the trie choosing opposite bits at each level. O(n) total time.",
+        "commonMistake": "Forgetting to pad numbers to the same bit length (32 bits). Without consistent length, paths in the trie don't align correctly and the greedy approach breaks."
+      }
+    },
+    {
+      "id": "tr-s16",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "trie-applications"
+      ],
+      "prompt": {
+        "context": "You have a trie with words ['apple', 'app', 'ap', 'application', 'banana', 'ban'] and need to find the shortest unique prefix for each word \u2014 the shortest prefix that uniquely identifies the word.\n\napple \u2192 'appl' (all others start with 'ap' or 'app', but only apple has 'appl')\nbanana \u2192 'banan' (ban could also start 'ban')",
+        "question": "How does the prefix_count augmented trie help find shortest unique prefixes?"
+      },
+      "options": [
+        {
+          "id": "tr-s16-o1",
+          "label": "Walk each word's path in the trie. The shortest unique prefix ends at the first node where prefix_count == 1 \u2014 meaning only this word passes through here.",
+          "description": "prefix_count tracks how many words share each prefix. When count drops to 1, the prefix uniquely identifies the word."
+        },
+        {
+          "id": "tr-s16-o2",
+          "label": "Find the first branching node for each word \u2014 the branching point is where the word becomes unique",
+          "description": "Branching means the word diverges from others at that character"
+        },
+        {
+          "id": "tr-s16-o3",
+          "label": "Compare each word against all others to find the minimum distinguishing prefix",
+          "description": "Pairwise comparison gives the shortest prefix that differs from every other word"
+        }
+      ],
+      "correctOptionId": "tr-s16-o1",
+      "explanation": {
+        "reasoning": "With prefix_count on each node (incremented during insert): walk the path for each word. The root might have count=6 (all words). As you go deeper along 'apple', counts might be: a(5)\u2192p(4)\u2192p(2)\u2192l(1)\u2192e(1). The first node with count=1 is 'l', meaning only 'apple' has the prefix 'appl'. The shortest unique prefix is 'appl'. This works because prefix_count=1 means exactly one word passes through that node \u2014 it's unique from that point on.",
+        "tradeoffs": "This is O(m) per word query. Option 2 (branching) doesn't work because branching doesn't guarantee uniqueness \u2014 other words might share longer prefixes on the same branch. Option 3 is O(n^2 * m) \u2014 far worse.",
+        "keyTakeaway": "Shortest unique prefix: walk the word's path in the trie, find the first node with prefix_count == 1. That prefix uniquely identifies the word.",
+        "commonMistake": "Using the first branching node instead of prefix_count == 1. Branching only means the path splits, but your branch might still share a longer prefix with another word on the same branch."
+      }
+    }
+  ]
+}

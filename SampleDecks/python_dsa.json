@@ -1,0 +1,837 @@
+{
+  "id": "python-dsa-interview",
+  "title": "Python DSA: Interview Code Patterns",
+  "description": "Code-focused decision scenarios with real Python implementations. Review code, spot bugs, choose optimal implementations, and learn interview-ready patterns.",
+  "domain": "data-structures-algorithms",
+  "version": "2.0",
+  "concepts": [
+    {
+      "id": "hash-tables",
+      "name": "Hash Tables & Dicts",
+      "description": "Python dicts and sets for O(1) average lookup. defaultdict, Counter, and complement-search patterns."
+    },
+    {
+      "id": "two-pointers",
+      "name": "Two Pointers",
+      "description": "Using two indices to traverse arrays from both ends or at different speeds. Key for sorted array problems and partitioning."
+    },
+    {
+      "id": "sliding-window",
+      "name": "Sliding Window",
+      "description": "Fixed and variable-size window techniques for subarray/substring problems. Reduces O(n\u00b2) brute force to O(n)."
+    },
+    {
+      "id": "linked-lists",
+      "name": "Linked Lists",
+      "description": "Singly and doubly linked lists. Two-pointer techniques, fast/slow pointers, in-place reversal."
+    },
+    {
+      "id": "stacks-queues",
+      "name": "Stacks & Queues",
+      "description": "LIFO and FIFO structures. Monotonic stacks, expression evaluation, BFS queues, deque for O(1) both ends."
+    },
+    {
+      "id": "trees",
+      "name": "Trees & BSTs",
+      "description": "Binary trees, BSTs, recursive traversals, DFS/BFS on trees, tree construction from traversals."
+    },
+    {
+      "id": "graphs",
+      "name": "Graph Algorithms",
+      "description": "BFS, DFS, topological sort, union-find, shortest path. Adjacency list representation."
+    },
+    {
+      "id": "dynamic-programming",
+      "name": "Dynamic Programming",
+      "description": "Memoization vs tabulation, state transitions, space optimization. Recognizing DP substructure."
+    },
+    {
+      "id": "heaps",
+      "name": "Heaps & Priority Queues",
+      "description": "heapq for min-heap, negation trick for max-heap. Top-K problems, merge K sorted, median finding."
+    },
+    {
+      "id": "binary-search",
+      "name": "Binary Search",
+      "description": "Classic binary search and its variants: bisect_left, bisect_right, search on answer space."
+    },
+    {
+      "id": "backtracking",
+      "name": "Backtracking",
+      "description": "Systematic exploration with pruning. Permutations, combinations, constraint satisfaction, N-queens pattern."
+    },
+    {
+      "id": "prefix-sum",
+      "name": "Prefix Sum & Cumulative",
+      "description": "Prefix sums for O(1) range queries. Combined with hash maps for subarray sum problems."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "dsa-dsa-twosum-bug",
+      "type": "decision",
+      "difficulty": 1,
+      "tags": [
+        "arrays",
+        "hash-map",
+        "bug-finding"
+      ],
+      "concepts": [
+        "hash-tables"
+      ],
+      "prompt": {
+        "context": "A candidate wrote this Two Sum solution in an interview. The function should return indices of two numbers that add up to target.\n\n```python\ndef two_sum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        seen[num] = i\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [i, seen[complement]]\n    return []\n```\n\nTest case: two_sum([3, 3], 6) should return [0, 1].",
+        "constraints": [
+          "Exactly one valid solution exists",
+          "Can't use the same element twice",
+          "Must return indices, not values"
+        ],
+        "question": "What is wrong with this implementation?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-twosum-bug-opt-correct",
+          "label": "It works correctly",
+          "description": "The two-pass approach is valid and handles all cases."
+        },
+        {
+          "id": "dsa-dsa-twosum-bug-opt-same-idx",
+          "label": "Returns same index twice",
+          "description": "For [3,3] target=6, seen[3]=1 overwrites seen[3]=0. Second loop: i=0, complement=3, seen[3]=1, returns [0,1] \u2014 but for input [3,2,3], seen[3]=2 overwrites index 0, so i=0 finds complement at index 2. However, single-element case: [5,x] target=10 with i=0 would use seen[5]=0, returning [0,0]."
+        },
+        {
+          "id": "dsa-dsa-twosum-bug-opt-onepass",
+          "label": "Fails for duplicates & can return [i,i]",
+          "description": "The two-pass version overwrites indices of duplicate values AND can return the same index for non-duplicate cases where num == complement."
+        },
+        {
+          "id": "dsa-dsa-twosum-bug-opt-order",
+          "label": "Returns indices in wrong order",
+          "description": "It returns [i, seen[complement]] which might not be in ascending order."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-twosum-bug-opt-onepass",
+      "explanation": {
+        "reasoning": "Two bugs: (1) In the first loop, `seen[3] = 1` overwrites `seen[3] = 0`, losing the first index. (2) More critically, if a single number equals half the target (e.g., nums=[5,2], target=10), the second loop at i=0 finds complement=5 in seen at index 0, returning [0,0] \u2014 using the same element twice.\n\nThe one-pass solution fixes both:\n\n```python\ndef two_sum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i\n    return []\n```\n\nBy checking before inserting, we guarantee complement was seen at a different, earlier index.",
+        "tradeoffs": "The two-pass approach can be fixed by adding `and seen[complement] != i` to the check, but the one-pass solution is cleaner, faster (single iteration), and naturally avoids both issues.",
+        "keyTakeaway": "One-pass hash map: check for complement BEFORE inserting current element. This naturally prevents using the same index twice and handles duplicates correctly because earlier occurrences are already in the map.",
+        "commonMistake": "Writing a two-pass solution and not checking `seen[complement] != i`. The one-pass pattern is both simpler and more correct \u2014 always prefer it."
+      }
+    },
+    {
+      "id": "dsa-dsa-three-sum-code",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "arrays",
+        "two-pointers",
+        "dedup"
+      ],
+      "concepts": [
+        "two-pointers"
+      ],
+      "prompt": {
+        "context": "You need to implement 3Sum: find all unique triplets [a,b,c] where a+b+c=0. Here are two implementations:\n\n**Version A:**\n```python\ndef three_sum(nums):\n    nums.sort()\n    result = []\n    for i in range(len(nums) - 2):\n        if i > 0 and nums[i] == nums[i-1]:\n            continue\n        lo, hi = i + 1, len(nums) - 1\n        while lo < hi:\n            total = nums[i] + nums[lo] + nums[hi]\n            if total < 0:\n                lo += 1\n            elif total > 0:\n                hi -= 1\n            else:\n                result.append([nums[i], nums[lo], nums[hi]])\n                while lo < hi and nums[lo] == nums[lo+1]:\n                    lo += 1\n                while lo < hi and nums[hi] == nums[hi-1]:\n                    hi -= 1\n                lo += 1\n                hi -= 1\n    return result\n```\n\n**Version B:**\n```python\ndef three_sum(nums):\n    nums.sort()\n    result = set()\n    for i in range(len(nums) - 2):\n        lo, hi = i + 1, len(nums) - 1\n        while lo < hi:\n            total = nums[i] + nums[lo] + nums[hi]\n            if total < 0:\n                lo += 1\n            elif total > 0:\n                hi -= 1\n            else:\n                result.add((nums[i], nums[lo], nums[hi]))\n                lo += 1\n                hi -= 1\n    return [list(t) for t in result]\n```",
+        "constraints": [
+          "Must return unique triplets only (no duplicates)",
+          "Array can have up to 3000 elements",
+          "Elements range from -10^5 to 10^5"
+        ],
+        "question": "Which version should you use in an interview and why?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-three-sum-code-opt-a",
+          "label": "Version A \u2014 skip-duplicates",
+          "description": "O(n\u00b2) time, O(1) extra space. Manual duplicate skipping with while loops after finding a match."
+        },
+        {
+          "id": "dsa-dsa-three-sum-code-opt-b",
+          "label": "Version B \u2014 set dedup",
+          "description": "O(n\u00b2) time, O(n) extra space for the set. Simpler code, set handles deduplication."
+        },
+        {
+          "id": "dsa-dsa-three-sum-code-opt-both",
+          "label": "Both are equivalent",
+          "description": "They produce the same output with the same complexity."
+        },
+        {
+          "id": "dsa-dsa-three-sum-code-opt-neither",
+          "label": "Neither \u2014 use hash map approach",
+          "description": "Sort + two pointers is suboptimal; use a hash map for each pair instead."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-three-sum-code-opt-a",
+      "explanation": {
+        "reasoning": "Version A is the interview-standard solution. It achieves true O(n\u00b2) time with O(1) extra space (ignoring sort) by skipping duplicates in-place:\n\n1. `if i > 0 and nums[i] == nums[i-1]: continue` \u2014 skips duplicate first elements\n2. After finding a triplet, the inner while loops skip duplicate second/third elements\n3. No extra data structure needed for deduplication\n\nVersion B works but uses O(n) extra space for the set and hashing tuples has overhead. Interviewers want to see the skip-duplicates technique \u2014 it demonstrates understanding of the sorted invariant.\n\n```python\n# Clean interview version:\ndef three_sum(nums):\n    nums.sort()\n    result = []\n    for i in range(len(nums) - 2):\n        if i > 0 and nums[i] == nums[i-1]:  # skip dup first element\n            continue\n        if nums[i] > 0:  # optimization: no valid triplet possible\n            break\n        lo, hi = i + 1, len(nums) - 1\n        while lo < hi:\n            total = nums[i] + nums[lo] + nums[hi]\n            if total < 0:\n                lo += 1\n            elif total > 0:\n                hi -= 1\n            else:\n                result.append([nums[i], nums[lo], nums[hi]])\n                while lo < hi and nums[lo] == nums[lo+1]:\n                    lo += 1\n                while lo < hi and nums[hi] == nums[hi-1]:\n                    hi -= 1\n                lo += 1\n                hi -= 1\n    return result\n```",
+        "tradeoffs": "Version B is easier to write under pressure but shows less algorithmic skill. The set approach also has worse constants due to tuple hashing. The `nums[i] > 0: break` optimization in Version A is a nice interview bonus \u2014 if the smallest number is positive, no triplet can sum to zero.",
+        "keyTakeaway": "For k-sum problems on sorted arrays: fix one element, two-pointer the rest, skip duplicates by checking adjacent elements. This pattern extends to 4Sum, kSum. Always sort first.",
+        "commonMistake": "Forgetting the `lo += 1; hi -= 1` after the inner while loops that skip duplicates. The skip loops move to the last duplicate, then you need one more step to move past it."
+      }
+    },
+    {
+      "id": "dsa-dsa-longest-substring-code",
+      "type": "decision",
+      "difficulty": 2,
+      "tags": [
+        "sliding-window",
+        "string",
+        "hash-set"
+      ],
+      "concepts": [
+        "sliding-window",
+        "hash-tables"
+      ],
+      "prompt": {
+        "context": "Longest Substring Without Repeating Characters \u2014 find the length of the longest substring without duplicate characters. Compare these implementations:\n\n**Version A (set + shrink):**\n```python\ndef length_of_longest(s):\n    seen = set()\n    left = 0\n    max_len = 0\n    for right in range(len(s)):\n        while s[right] in seen:\n            seen.remove(s[left])\n            left += 1\n        seen.add(s[right])\n        max_len = max(max_len, right - left + 1)\n    return max_len\n```\n\n**Version B (dict + jump):**\n```python\ndef length_of_longest(s):\n    last_seen = {}\n    left = 0\n    max_len = 0\n    for right in range(len(s)):\n        if s[right] in last_seen and last_seen[s[right]] >= left:\n            left = last_seen[s[right]] + 1\n        last_seen[s[right]] = right\n        max_len = max(max_len, right - left + 1)\n    return max_len\n```",
+        "constraints": [
+          "String length: 0 to 5 \u00d7 10^4",
+          "String contains English letters, digits, symbols, spaces",
+          "Need the length, not the substring itself"
+        ],
+        "question": "Which implementation is more interview-optimal?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-longest-substring-code-opt-set",
+          "label": "Version A \u2014 easier to reason about",
+          "description": "The set + shrink pattern is more intuitive and clearly correct."
+        },
+        {
+          "id": "dsa-dsa-longest-substring-code-opt-dict",
+          "label": "Version B \u2014 true O(n) with jump",
+          "description": "The dict + jump version never backtracks left pointer, giving better worst-case."
+        },
+        {
+          "id": "dsa-dsa-longest-substring-code-opt-same",
+          "label": "Both are O(n), pick either",
+          "description": "Both are linear time, the difference is negligible."
+        },
+        {
+          "id": "dsa-dsa-longest-substring-code-opt-counter",
+          "label": "Neither \u2014 use Counter",
+          "description": "collections.Counter is cleaner for tracking character frequencies."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-longest-substring-code-opt-dict",
+      "explanation": {
+        "reasoning": "Version B is strictly better. Both are O(n) amortized, but Version A's inner while loop can process the same character multiple times (e.g., 'abcabc' \u2014 when hitting the second 'a', it removes 'a' one by one from the left). Version B jumps `left` directly to `last_seen[char] + 1`, making each step O(1) with no inner loop.\n\nThe key insight in Version B: `last_seen[s[right]] >= left` checks that the duplicate is actually within the current window. Without this check, a stale entry from before the window would incorrectly shrink it.\n\n```python\n# Interview-ready version with clear variable names:\ndef length_of_longest_substring(s: str) -> int:\n    char_index = {}  # char -> most recent index\n    left = 0\n    max_len = 0\n    for right, char in enumerate(s):\n        if char in char_index and char_index[char] >= left:\n            left = char_index[char] + 1  # jump past the duplicate\n        char_index[char] = right\n        max_len = max(max_len, right - left + 1)\n    return max_len\n```",
+        "tradeoffs": "Version A is easier to write from scratch and harder to get wrong. Version B requires the `>= left` guard which is easy to forget. In an interview, if you're unsure, Version A is safer. But if you can nail Version B, it shows deeper understanding.",
+        "keyTakeaway": "Sliding window with a dict storing last-seen indices lets you JUMP the left pointer instead of SHRINKING one step at a time. The `>= left` guard is critical \u2014 it ensures you only react to duplicates within the current window.",
+        "commonMistake": "Forgetting the `last_seen[s[right]] >= left` check in Version B. Without it, the left pointer can jump backwards if a character was seen before the current window started, breaking the algorithm."
+      }
+    },
+    {
+      "id": "dsa-dsa-reverse-linked-list-code",
+      "type": "decision",
+      "difficulty": 2,
+      "tags": [
+        "linked-list",
+        "in-place",
+        "pointers"
+      ],
+      "concepts": [
+        "linked-lists"
+      ],
+      "prompt": {
+        "context": "Reverse a singly linked list. Which implementation is correct?\n\n**Version A:**\n```python\ndef reverse_list(head):\n    prev = None\n    curr = head\n    while curr:\n        next_node = curr.next\n        curr.next = prev\n        prev = curr\n        curr = next_node\n    return prev\n```\n\n**Version B:**\n```python\ndef reverse_list(head):\n    prev = None\n    curr = head\n    while curr:\n        curr.next = prev\n        prev = curr\n        curr = curr.next\n    return prev\n```\n\n**Version C (recursive):**\n```python\ndef reverse_list(head):\n    if not head or not head.next:\n        return head\n    new_head = reverse_list(head.next)\n    head.next.next = head\n    head.next = None\n    return new_head\n```",
+        "constraints": [
+          "Must reverse in-place (O(1) extra space for iterative)",
+          "List can be empty or have one node",
+          "Return the new head"
+        ],
+        "question": "Which version(s) are correct?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-reverse-linked-list-code-opt-all",
+          "label": "All three are correct",
+          "description": "A, B, and C all correctly reverse the linked list."
+        },
+        {
+          "id": "dsa-dsa-reverse-linked-list-code-opt-ac",
+          "label": "A and C only",
+          "description": "Version B has a bug \u2014 it loses the next pointer before advancing."
+        },
+        {
+          "id": "dsa-dsa-reverse-linked-list-code-opt-a-only",
+          "label": "Only A is correct",
+          "description": "B has a pointer bug and C has a base case issue."
+        },
+        {
+          "id": "dsa-dsa-reverse-linked-list-code-opt-ab",
+          "label": "A and B only",
+          "description": "The recursive version has incorrect pointer manipulation."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-reverse-linked-list-code-opt-ac",
+      "explanation": {
+        "reasoning": "**Version B has a critical bug.** After `curr.next = prev`, the original `curr.next` is lost. Then `curr = curr.next` follows the already-overwritten pointer (which now points to `prev`), creating an infinite loop or losing the rest of the list.\n\nVersion A fixes this by saving `next_node = curr.next` BEFORE overwriting `curr.next`.\n\nVersion C is correct recursive reversal. `head.next.next = head` makes the next node point back to current, and `head.next = None` removes the forward link.\n\n```python\n# Interview-ready iterative (memorize this):\ndef reverse_list(head: ListNode) -> ListNode:\n    prev, curr = None, head\n    while curr:\n        curr.next, prev, curr = prev, curr, curr.next\n    return prev\n\n# Pythonic one-liner using tuple swap:\n# curr.next, prev, curr = prev, curr, curr.next\n# This works because Python evaluates the right side FIRST,\n# then assigns left-to-right. So curr.next is read before overwrite.\n```",
+        "tradeoffs": "The iterative version is O(n) time, O(1) space. The recursive version is O(n) time, O(n) space (call stack). Interviewers generally prefer iterative, but knowing both shows depth. The Python tuple-swap trick is elegant but explain it if you use it.",
+        "keyTakeaway": "When reversing pointers in a linked list, ALWAYS save the next pointer before overwriting. The three-variable dance is: save next, reverse link, advance prev, advance curr. Python tuple swap does this atomically.",
+        "commonMistake": "Version B's bug: overwriting curr.next before saving the original next pointer. This is the #1 linked list bug in interviews. Always ask yourself: 'Am I reading a pointer I already overwrote?'"
+      }
+    },
+    {
+      "id": "dsa-dsa-valid-parens-stack",
+      "type": "decision",
+      "difficulty": 1,
+      "tags": [
+        "stack",
+        "string",
+        "matching"
+      ],
+      "concepts": [
+        "stacks-queues"
+      ],
+      "prompt": {
+        "context": "Valid Parentheses \u2014 determine if a string of brackets is valid. A candidate writes:\n\n```python\ndef is_valid(s):\n    stack = []\n    pairs = {')': '(', '}': '{', ']': '['}\n    for ch in s:\n        if ch in pairs:\n            if stack and stack[-1] == pairs[ch]:\n                stack.pop()\n            else:\n                return False\n        else:\n            stack.append(ch)\n    return len(stack) == 0\n```\n\nAnother candidate writes:\n\n```python\ndef is_valid(s):\n    while '()' in s or '{}' in s or '[]' in s:\n        s = s.replace('()', '').replace('{}', '').replace('[]', '')\n    return s == ''\n```",
+        "constraints": [
+          "String contains only (){}[]",
+          "Length 1 to 10^4",
+          "Must handle empty string (return True)"
+        ],
+        "question": "What's the assessment of these two solutions?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-valid-parens-stack-opt-first-good",
+          "label": "First is O(n) and correct; second is O(n\u00b2) but also correct",
+          "description": "The stack solution is optimal. The replace solution works but has poor time complexity due to repeated string scans."
+        },
+        {
+          "id": "dsa-dsa-valid-parens-stack-opt-first-bug",
+          "label": "First has a bug with empty stack",
+          "description": "When stack is empty and we see a closing bracket, the `if stack` check fails and returns False \u2014 which is actually correct behavior."
+        },
+        {
+          "id": "dsa-dsa-valid-parens-stack-opt-second-better",
+          "label": "Second is cleaner and preferred",
+          "description": "The replace approach is more Pythonic and equally efficient."
+        },
+        {
+          "id": "dsa-dsa-valid-parens-stack-opt-both-wrong",
+          "label": "Both have edge case bugs",
+          "description": "Neither handles all edge cases correctly."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-valid-parens-stack-opt-first-good",
+      "explanation": {
+        "reasoning": "**First solution: O(n), correct.** Each character is pushed/popped at most once. The `if stack` guard correctly handles the case where a closing bracket appears with an empty stack (no matching opener).\n\n**Second solution: correct but O(n\u00b2).** Each `replace()` scans the entire string (O(n)), and in the worst case (e.g., '(((())))'), we need O(n/2) rounds. Total: O(n\u00b2). For n=10^4 it's fine, but interviewers want the stack approach.\n\n```python\n# Interview-ready version:\ndef is_valid(s: str) -> bool:\n    stack = []\n    match = {')': '(', '}': '{', ']': '['}\n    for ch in s:\n        if ch in match:\n            # Closing bracket: must match top of stack\n            if not stack or stack[-1] != match[ch]:\n                return False\n            stack.pop()\n        else:\n            # Opening bracket: push\n            stack.append(ch)\n    return not stack  # True if all brackets matched\n```",
+        "tradeoffs": "The replace approach is a clever one-liner for code golf but shows O(n\u00b2) thinking. The stack approach is O(n) time, O(n) space, and directly demonstrates understanding of LIFO matching. It's the expected interview answer.",
+        "keyTakeaway": "Stack = the data structure for any matching/nesting problem (brackets, HTML tags, expression parsing). Map closing\u2192opening for clean lookup. Check stack emptiness before peeking/popping.",
+        "commonMistake": "Forgetting `not stack` check before `stack[-1]` \u2014 causes IndexError on empty stack when a closing bracket appears first, like ')('."
+      }
+    },
+    {
+      "id": "dsa-dsa-binary-search-variants",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "binary-search",
+        "bisect",
+        "boundaries"
+      ],
+      "concepts": [
+        "binary-search"
+      ],
+      "prompt": {
+        "context": "You need to find the first position where target could be inserted in a sorted array (leftmost insertion point). Three implementations:\n\n**Version A:**\n```python\ndef search_left(nums, target):\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return lo\n```\n\n**Version B:**\n```python\ndef search_left(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n```\n\n**Version C:**\n```python\ndef search_left(nums, target):\n    lo, hi = 0, len(nums) - 1\n    result = len(nums)\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] >= target:\n            result = mid\n            hi = mid - 1\n        else:\n            lo = mid + 1\n    return result\n```",
+        "constraints": [
+          "Array is sorted in ascending order",
+          "May contain duplicates",
+          "Return the leftmost valid insertion index",
+          "Equivalent to bisect_left behavior"
+        ],
+        "question": "Which implementations correctly find the leftmost insertion point?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-binary-search-variants-opt-all-correct",
+          "label": "All three are correct",
+          "description": "All three implement bisect_left correctly using different loop invariants."
+        },
+        {
+          "id": "dsa-dsa-binary-search-variants-opt-b-only",
+          "label": "Only Version B",
+          "description": "A and C have off-by-one errors for edge cases."
+        },
+        {
+          "id": "dsa-dsa-binary-search-variants-opt-ab",
+          "label": "A and B only",
+          "description": "C has a bug with the result variable initialization."
+        },
+        {
+          "id": "dsa-dsa-binary-search-variants-opt-bc",
+          "label": "B and C only",
+          "description": "A returns wrong value when target is not in the array."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-binary-search-variants-opt-all-correct",
+      "explanation": {
+        "reasoning": "All three are correct implementations of bisect_left, using different styles:\n\n**Version A** (`lo <= hi`, exclusive shrink): The classic style. `lo` converges to the insertion point because we only set `lo = mid + 1` when `nums[mid] < target`.\n\n**Version B** (`lo < hi`, half-open interval `[lo, hi)`): This is how Python's `bisect_left` actually works internally. `hi = mid` (not `mid - 1`) because `hi` is exclusive.\n\n**Version C** (explicit result tracking): Stores the answer whenever `nums[mid] >= target` and keeps searching left for an earlier position.\n\n```python\n# Interview-ready: just use bisect\nfrom bisect import bisect_left, bisect_right\n\n# bisect_left: first position where target can be inserted\n# bisect_right: last position where target can be inserted\n\n# Manual implementation (Version B style, matches bisect internals):\ndef bisect_left_manual(nums, target):\n    lo, hi = 0, len(nums)  # half-open [lo, hi)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid  # NOT mid - 1 (half-open)\n    return lo\n\n# For finding first/last occurrence:\ndef first_occurrence(nums, target):\n    idx = bisect_left(nums, target)\n    return idx if idx < len(nums) and nums[idx] == target else -1\n\ndef last_occurrence(nums, target):\n    idx = bisect_right(nums, target) - 1\n    return idx if idx >= 0 and nums[idx] == target else -1\n```",
+        "tradeoffs": "Version B (half-open interval) is most consistent with Python conventions and bisect internals. Version A (closed interval) is most common in textbooks. Version C is most explicit about what's being tracked. Pick one style and be consistent.",
+        "keyTakeaway": "Binary search has exactly two decisions to make: (1) loop condition (`<` vs `<=`), (2) how to shrink (`hi = mid` vs `hi = mid - 1`). These must be consistent: `lo < hi` pairs with `hi = mid`; `lo <= hi` pairs with `hi = mid - 1`. Mixing them causes infinite loops.",
+        "commonMistake": "Mixing loop invariant styles: using `lo <= hi` with `hi = mid` causes infinite loops. Using `lo < hi` with `hi = mid - 1` can skip valid positions. Pick one convention and stick with it."
+      }
+    },
+    {
+      "id": "dsa-dsa-lru-cache-code",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "design",
+        "hash-map",
+        "linked-list"
+      ],
+      "concepts": [
+        "hash-tables",
+        "linked-lists"
+      ],
+      "prompt": {
+        "context": "LRU Cache \u2014 implement get(key) and put(key, value) in O(1). A candidate writes:\n\n```python\nfrom collections import OrderedDict\n\nclass LRUCache:\n    def __init__(self, capacity: int):\n        self.cache = OrderedDict()\n        self.cap = capacity\n\n    def get(self, key: int) -> int:\n        if key not in self.cache:\n            return -1\n        self.cache.move_to_end(key)\n        return self.cache[key]\n\n    def put(self, key: int, value: int) -> None:\n        if key in self.cache:\n            self.cache.move_to_end(key)\n        self.cache[key] = value\n        if len(self.cache) > self.cap:\n            self.cache.popitem(last=False)\n```\n\nThe interviewer then asks: \"Now implement it without OrderedDict.\"",
+        "constraints": [
+          "O(1) time for both get and put",
+          "Capacity is at least 1",
+          "No OrderedDict allowed in follow-up"
+        ],
+        "question": "What data structures do you need to implement LRU Cache from scratch?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-lru-cache-code-opt-dict-dll",
+          "label": "Dict + Doubly Linked List",
+          "description": "Hash map for O(1) key lookup, DLL for O(1) move/remove operations with head/tail sentinels."
+        },
+        {
+          "id": "dsa-dsa-lru-cache-code-opt-dict-list",
+          "label": "Dict + Python list",
+          "description": "Hash map for lookup, Python list for ordering. Move elements by removing and appending."
+        },
+        {
+          "id": "dsa-dsa-lru-cache-code-opt-dict-deque",
+          "label": "Dict + collections.deque",
+          "description": "Hash map for lookup, deque for O(1) popleft/append."
+        },
+        {
+          "id": "dsa-dsa-lru-cache-code-opt-heap",
+          "label": "Dict + min-heap with timestamps",
+          "description": "Hash map for lookup, min-heap ordered by access time for eviction."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-lru-cache-code-opt-dict-dll",
+      "explanation": {
+        "reasoning": "Only a doubly linked list gives O(1) removal of an arbitrary node (when you have a reference to it) AND O(1) insertion at the tail. The dict maps key \u2192 DLL node, giving O(1) lookup + O(1) reposition.\n\n```python\nclass Node:\n    def __init__(self, key=0, val=0):\n        self.key = key\n        self.val = val\n        self.prev = None\n        self.next = None\n\nclass LRUCache:\n    def __init__(self, capacity: int):\n        self.cap = capacity\n        self.cache = {}  # key -> Node\n        # Sentinel nodes avoid null checks\n        self.head = Node()  # dummy head (LRU end)\n        self.tail = Node()  # dummy tail (MRU end)\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node):\n        node.prev.next = node.next\n        node.next.prev = node.prev\n\n    def _add_to_tail(self, node: Node):\n        node.prev = self.tail.prev\n        node.next = self.tail\n        self.tail.prev.next = node\n        self.tail.prev = node\n\n    def get(self, key: int) -> int:\n        if key not in self.cache:\n            return -1\n        node = self.cache[key]\n        self._remove(node)\n        self._add_to_tail(node)\n        return node.val\n\n    def put(self, key: int, value: int):\n        if key in self.cache:\n            self._remove(self.cache[key])\n        node = Node(key, value)\n        self._add_to_tail(node)\n        self.cache[key] = node\n        if len(self.cache) > self.cap:\n            lru = self.head.next\n            self._remove(lru)\n            del self.cache[lru.key]\n```\n\nSentinel nodes (dummy head/tail) eliminate all null checks in _remove and _add_to_tail.",
+        "tradeoffs": "Python list: list.remove() is O(n), so put becomes O(n). Deque: no O(1) removal of arbitrary elements (only ends). Heap: O(log n) for push/pop. Only the DLL gives O(1) for all operations. The node stores the key so we can delete from the dict during eviction.",
+        "keyTakeaway": "LRU Cache = Dict + Doubly Linked List with sentinel nodes. Store the KEY in the DLL node so you can delete from the dict when evicting. Sentinel nodes eliminate edge cases. This is a top-10 interview design question.",
+        "commonMistake": "Forgetting to store the key in the DLL node. Without it, when evicting the LRU node (head.next), you can't find and delete it from the dict. Also, forgetting to delete from cache dict when evicting causes memory leak."
+      }
+    },
+    {
+      "id": "dsa-dsa-bfs-level-order",
+      "type": "decision",
+      "difficulty": 2,
+      "tags": [
+        "tree",
+        "bfs",
+        "level-order"
+      ],
+      "concepts": [
+        "trees"
+      ],
+      "prompt": {
+        "context": "Binary tree level-order traversal \u2014 return values grouped by level. Compare:\n\n**Version A (BFS with level size):**\n```python\nfrom collections import deque\n\ndef level_order(root):\n    if not root:\n        return []\n    result = []\n    queue = deque([root])\n    while queue:\n        level_size = len(queue)\n        level = []\n        for _ in range(level_size):\n            node = queue.popleft()\n            level.append(node.val)\n            if node.left:\n                queue.append(node.left)\n            if node.right:\n                queue.append(node.right)\n        result.append(level)\n    return result\n```\n\n**Version B (DFS with depth):**\n```python\ndef level_order(root):\n    result = []\n    def dfs(node, depth):\n        if not node:\n            return\n        if depth == len(result):\n            result.append([])\n        result[depth].append(node.val)\n        dfs(node.left, depth + 1)\n        dfs(node.right, depth + 1)\n    dfs(root, 0)\n    return result\n```",
+        "constraints": [
+          "Return list of lists, each inner list is one level",
+          "Left to right ordering within each level",
+          "Tree can have 0 to 2000 nodes"
+        ],
+        "question": "Both produce correct output. Which should you use in an interview?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-bfs-level-order-opt-bfs",
+          "label": "Version A (BFS) \u2014 canonical approach",
+          "description": "BFS with level_size is the standard pattern for level-order. Shows understanding of BFS mechanics."
+        },
+        {
+          "id": "dsa-dsa-bfs-level-order-opt-dfs",
+          "label": "Version B (DFS) \u2014 more elegant",
+          "description": "DFS with depth tracking is shorter and avoids importing deque."
+        },
+        {
+          "id": "dsa-dsa-bfs-level-order-opt-either",
+          "label": "Either is fine",
+          "description": "Both are O(n) time and space. Use whichever you're more comfortable with."
+        },
+        {
+          "id": "dsa-dsa-bfs-level-order-opt-bfs-follow",
+          "label": "Version A, then mention B as follow-up",
+          "description": "Lead with BFS (expected answer), then show DFS variant to demonstrate depth of knowledge."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-bfs-level-order-opt-bfs-follow",
+      "explanation": {
+        "reasoning": "Start with BFS \u2014 it's the natural/expected approach for level-order and demonstrates the `level_size = len(queue)` pattern that's reusable across many problems (zigzag traversal, right side view, level averages). Then mention the DFS alternative to show versatility.\n\n```python\n# Interview-ready BFS template (reusable for many tree problems):\nfrom collections import deque\n\ndef level_order(root):\n    if not root:\n        return []\n    result = []\n    queue = deque([root])\n    while queue:\n        level_size = len(queue)  # KEY: snapshot current level size\n        level = []\n        for _ in range(level_size):\n            node = queue.popleft()\n            level.append(node.val)\n            if node.left:\n                queue.append(node.left)\n            if node.right:\n                queue.append(node.right)\n        result.append(level)\n    return result\n\n# Variations using same template:\n# - Zigzag: alternate level.append vs level.appendleft (use deque for level)\n# - Right side view: take level[-1] from each level\n# - Level averages: sum(level) / len(level)\n# - Max depth: count levels\n```",
+        "tradeoffs": "BFS uses O(w) space where w is max tree width (could be n/2 for complete tree). DFS uses O(h) stack space where h is height. For balanced trees, DFS uses less space O(log n) vs O(n/2). But BFS is the expected pattern and more naturally extends to related problems.",
+        "keyTakeaway": "The `level_size = len(queue)` snapshot is THE BFS template for tree level processing. It separates levels without markers. Memorize this \u2014 it's used in level-order, zigzag, right-side view, and many more.",
+        "commonMistake": "Processing BFS without the level_size snapshot \u2014 just popping one at a time doesn't let you know when one level ends and the next begins. The snapshot captures exactly how many nodes are at the current level."
+      }
+    },
+    {
+      "id": "dsa-dsa-topological-sort-code",
+      "type": "diagram",
+      "difficulty": 3,
+      "tags": [
+        "graphs",
+        "topological-sort",
+        "bfs"
+      ],
+      "concepts": [
+        "graphs"
+      ],
+      "prompt": {
+        "context": "Course Schedule II \u2014 return a valid ordering of courses given prerequisites, or empty array if impossible (cycle). The diagram shows a sample dependency graph.\n\n```python\nfrom collections import deque\n\ndef find_order(num_courses, prerequisites):\n    graph = [[] for _ in range(num_courses)]\n    in_degree = [0] * num_courses\n    for course, prereq in prerequisites:\n        graph[prereq].append(course)\n        in_degree[course] += 1\n    \n    queue = deque()\n    for i in range(num_courses):\n        if in_degree[i] == 0:\n            queue.append(i)\n    \n    order = []\n    while queue:\n        node = queue.popleft()\n        order.append(node)\n        for neighbor in graph[node]:\n            in_degree[neighbor] -= 1\n            if in_degree[neighbor] == 0:\n                queue.append(neighbor)\n    \n    return order if len(order) == num_courses else []\n```",
+        "constraints": [
+          "num_courses: 1 to 2000",
+          "prerequisites[i] = [course, prereq] means prereq must come before course",
+          "Return any valid topological order, or [] if cycle exists"
+        ],
+        "question": "This is Kahn's algorithm (BFS topological sort). What determines if there's a cycle?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-topological-sort-code-opt-len-check",
+          "label": "len(order) < num_courses after BFS",
+          "description": "If not all nodes were processed, the remaining nodes are in a cycle \u2014 they never reached in-degree 0."
+        },
+        {
+          "id": "dsa-dsa-topological-sort-code-opt-revisit",
+          "label": "A node is visited twice in BFS",
+          "description": "If we dequeue the same node twice, there's a cycle."
+        },
+        {
+          "id": "dsa-dsa-topological-sort-code-opt-negative",
+          "label": "Any in_degree goes negative",
+          "description": "Negative in-degree indicates a cycle in the graph."
+        },
+        {
+          "id": "dsa-dsa-topological-sort-code-opt-empty-queue",
+          "label": "Queue becomes empty prematurely",
+          "description": "If the queue empties while there are still nodes to process."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-topological-sort-code-opt-len-check",
+      "explanation": {
+        "reasoning": "In Kahn's algorithm, only nodes with in-degree 0 enter the queue. In a cycle (A\u2192B\u2192C\u2192A), none of the cycle nodes ever reach in-degree 0, because each depends on another cycle member. So they're never dequeued and never added to `order`. After BFS, `len(order) < num_courses` means some nodes are stuck in a cycle.\n\n```python\n# Interview-ready with DFS cycle detection alternative:\ndef find_order_dfs(num_courses, prerequisites):\n    graph = [[] for _ in range(num_courses)]\n    for course, prereq in prerequisites:\n        graph[prereq].append(course)\n    \n    # 0=unvisited, 1=in current path (gray), 2=done (black)\n    state = [0] * num_courses\n    order = []\n    \n    def dfs(node):\n        if state[node] == 1:  # cycle: back edge\n            return False\n        if state[node] == 2:  # already processed\n            return True\n        state[node] = 1  # mark as in-progress\n        for neighbor in graph[node]:\n            if not dfs(neighbor):\n                return False\n        state[node] = 2  # mark as done\n        order.append(node)  # post-order = reverse topo order\n        return True\n    \n    for i in range(num_courses):\n        if not dfs(i):\n            return []\n    return order[::-1]  # reverse post-order = topological order\n```",
+        "tradeoffs": "BFS (Kahn's) naturally produces topological order and detects cycles via the length check. DFS detects cycles via back edges (revisiting a gray node) and produces reverse topological order via post-order. Both are O(V + E). Kahn's is more intuitive; DFS is more flexible for other graph analyses.",
+        "keyTakeaway": "Kahn's algorithm: start with in-degree 0 nodes, process them, reduce neighbors' in-degrees, add new zero-degree nodes. If you can't process all nodes, there's a cycle. The length check at the end is the cycle detection.",
+        "commonMistake": "In the DFS version, using only visited/unvisited (2 states) instead of 3 states (unvisited/in-progress/done). With 2 states, you can't distinguish a back edge (cycle) from a cross edge (already-processed node in a different branch)."
+      },
+      "diagram": {
+        "nodes": [
+          {
+            "id": "c0",
+            "label": "Course 0\nin_deg=0",
+            "type": "highlight"
+          },
+          {
+            "id": "c1",
+            "label": "Course 1\nin_deg=1",
+            "type": "primary"
+          },
+          {
+            "id": "c2",
+            "label": "Course 2\nin_deg=1",
+            "type": "primary"
+          },
+          {
+            "id": "c3",
+            "label": "Course 3\nin_deg=2",
+            "type": "primary"
+          }
+        ],
+        "edges": [
+          {
+            "from": "c0",
+            "to": "c1",
+            "label": "prereq"
+          },
+          {
+            "from": "c0",
+            "to": "c2",
+            "label": "prereq"
+          },
+          {
+            "from": "c1",
+            "to": "c3",
+            "label": "prereq"
+          },
+          {
+            "from": "c2",
+            "to": "c3",
+            "label": "prereq"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dsa-dsa-coin-change-dp",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "dynamic-programming",
+        "optimization",
+        "bottom-up"
+      ],
+      "concepts": [
+        "dynamic-programming"
+      ],
+      "prompt": {
+        "context": "Coin Change \u2014 find minimum coins to make amount. Compare these implementations:\n\n**Top-down (memoization):**\n```python\ndef coin_change(coins, amount):\n    from functools import lru_cache\n    \n    @lru_cache(maxsize=None)\n    def dp(rem):\n        if rem == 0:\n            return 0\n        if rem < 0:\n            return float('inf')\n        return min((dp(rem - c) + 1 for c in coins), default=float('inf'))\n    \n    result = dp(amount)\n    return result if result != float('inf') else -1\n```\n\n**Bottom-up (tabulation):**\n```python\ndef coin_change(coins, amount):\n    dp = [float('inf')] * (amount + 1)\n    dp[0] = 0\n    for i in range(1, amount + 1):\n        for c in coins:\n            if c <= i:\n                dp[i] = min(dp[i], dp[i - c] + 1)\n    return dp[amount] if dp[amount] != float('inf') else -1\n```",
+        "constraints": [
+          "Coins: 1 to 12 different denominations",
+          "Amount: 0 to 10^4",
+          "Return -1 if amount can't be made",
+          "Each coin can be used unlimited times"
+        ],
+        "question": "For a coding interview, which approach should you present?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-coin-change-dp-opt-topdown",
+          "label": "Top-down \u2014 easier to derive",
+          "description": "Start with recursion, add memoization. Natural thought process that's easy to explain."
+        },
+        {
+          "id": "dsa-dsa-coin-change-dp-opt-bottomup",
+          "label": "Bottom-up \u2014 more efficient",
+          "description": "No recursion overhead, better cache locality, no stack overflow risk."
+        },
+        {
+          "id": "dsa-dsa-coin-change-dp-opt-bottomup-explain",
+          "label": "Bottom-up, but explain top-down thinking",
+          "description": "Write bottom-up code but explain how you derived it from the recursive recurrence."
+        },
+        {
+          "id": "dsa-dsa-coin-change-dp-opt-greedy",
+          "label": "Greedy (largest coins first)",
+          "description": "Always pick the largest coin that fits. Simpler and faster."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-coin-change-dp-opt-bottomup-explain",
+      "explanation": {
+        "reasoning": "The best interview strategy: think top-down (recursive), code bottom-up (iterative).\n\n1. **Explain the recurrence**: 'For each amount i, try every coin c. If c \u2264 i, then dp[i] = min(dp[i], dp[i-c] + 1). Base case: dp[0] = 0.'\n2. **Code bottom-up**: No recursion limit, no cache overhead, clear iteration.\n\n```python\n# Interview-ready:\ndef coin_change(coins: list[int], amount: int) -> int:\n    dp = [float('inf')] * (amount + 1)\n    dp[0] = 0  # base case: 0 coins needed for amount 0\n    \n    for i in range(1, amount + 1):\n        for coin in coins:\n            if coin <= i and dp[i - coin] + 1 < dp[i]:\n                dp[i] = dp[i - coin] + 1\n    \n    return dp[amount] if dp[amount] != float('inf') else -1\n\n# Time: O(amount * len(coins))\n# Space: O(amount)\n```\n\nGreedy FAILS: coins=[1,3,4], amount=6. Greedy: 4+1+1=3 coins. Optimal: 3+3=2 coins.",
+        "tradeoffs": "Top-down with @lru_cache is fine for interviews and handles sparse state spaces better (only computes reachable states). Bottom-up is better for dense state spaces like this problem where most states are reachable. For very large amounts, bottom-up avoids Python's default recursion limit (1000).",
+        "keyTakeaway": "DP interview pattern: (1) Define state \u2014 dp[i] = min coins for amount i. (2) Define transition \u2014 dp[i] = min(dp[i-c] + 1) for each coin c. (3) Base case \u2014 dp[0] = 0. (4) Fill order \u2014 smallest to largest. Always verify greedy doesn't work before using DP.",
+        "commonMistake": "Using greedy (always pick largest coin). This fails for many coin systems. Only coin systems where greedy works are 'canonical' (like US coins). For arbitrary coins, you need DP. Another mistake: initializing dp with 0s instead of infinity \u2014 leads to wrong minimums."
+      }
+    },
+    {
+      "id": "dsa-dsa-merge-k-sorted",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "heap",
+        "merge",
+        "priority-queue"
+      ],
+      "concepts": [
+        "heaps"
+      ],
+      "prompt": {
+        "context": "Merge K sorted lists into one sorted list. Compare these approaches:\n\n**Heap approach:**\n```python\nimport heapq\n\ndef merge_k_lists(lists):\n    heap = []\n    for i, lst in enumerate(lists):\n        if lst:\n            heapq.heappush(heap, (lst.val, i, lst))\n    \n    dummy = curr = ListNode(0)\n    while heap:\n        val, i, node = heapq.heappop(heap)\n        curr.next = node\n        curr = curr.next\n        if node.next:\n            heapq.heappush(heap, (node.next.val, i, node.next))\n    return dummy.next\n```\n\n**Why does the heap store `(val, i, node)` instead of just `(val, node)`?**",
+        "constraints": [
+          "k lists, each sorted in ascending order",
+          "Total of n elements across all lists",
+          "Must produce a single sorted linked list"
+        ],
+        "question": "Why is the index `i` needed in the heap tuple?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-merge-k-sorted-opt-tiebreak",
+          "label": "Tiebreaker when values are equal",
+          "description": "heapq compares tuples left to right. If two vals are equal, it compares the next element. ListNode isn't comparable, so (val, node) crashes. The index i provides a valid tiebreaker."
+        },
+        {
+          "id": "dsa-dsa-merge-k-sorted-opt-track",
+          "label": "To track which list the node came from",
+          "description": "The index identifies the source list for potential follow-up queries."
+        },
+        {
+          "id": "dsa-dsa-merge-k-sorted-opt-performance",
+          "label": "Performance optimization",
+          "description": "The index allows O(1) access to list metadata."
+        },
+        {
+          "id": "dsa-dsa-merge-k-sorted-opt-not-needed",
+          "label": "It's not needed \u2014 just use (val, node)",
+          "description": "Python can compare ListNode objects by default."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-merge-k-sorted-opt-tiebreak",
+      "explanation": {
+        "reasoning": "Python's heapq compares tuples element by element. If two nodes have the same value, it tries to compare the next tuple element. `ListNode` objects don't support `<` comparison, causing:\n```\nTypeError: '<' not supported between instances of 'ListNode' and 'ListNode'\n```\n\nThe index `i` (unique per list) serves as a tiebreaker that's always comparable:\n- `(3, 0, node_a)` vs `(3, 2, node_b)` \u2192 compares `0 < 2`, no need to compare nodes.\n\n```python\n# Interview-ready merge K sorted lists:\nimport heapq\n\ndef merge_k_lists(lists: list[ListNode]) -> ListNode:\n    heap = []\n    for i, head in enumerate(lists):\n        if head:\n            heapq.heappush(heap, (head.val, i, head))\n    \n    dummy = curr = ListNode(0)\n    while heap:\n        val, i, node = heapq.heappop(heap)\n        curr.next = node\n        curr = curr.next\n        if node.next:\n            heapq.heappush(heap, (node.next.val, i, node.next))\n    return dummy.next\n\n# Time: O(n log k) \u2014 each of n elements pushed/popped once, heap size is k\n# Space: O(k) \u2014 heap holds at most k elements\n\n# Alternative without sentinel:\n# Add __lt__ to ListNode: def __lt__(self, other): return self.val < other.val\n# Then heap can store (val, node) directly\n```",
+        "tradeoffs": "Alternative: add `__lt__` to ListNode so nodes are directly comparable. But in interviews, you usually can't modify the ListNode class. The (val, i, node) tuple pattern is the universal solution. You could also use `counter = itertools.count()` instead of the list index.",
+        "keyTakeaway": "When putting custom objects in a Python heap, wrap them in tuples with a unique tiebreaker index: `(priority, tiebreaker, object)`. This avoids TypeError when priorities are equal. Common pattern for any priority queue with custom objects.",
+        "commonMistake": "Using `(val, node)` and getting TypeError on equal values. The fix is the tiebreaker index. This comes up in any problem using heapq with custom objects (merge K lists, Dijkstra with custom nodes, etc.)."
+      }
+    },
+    {
+      "id": "dsa-dsa-subarray-sum-k",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "prefix-sum",
+        "hash-map",
+        "arrays"
+      ],
+      "concepts": [
+        "prefix-sum",
+        "hash-tables"
+      ],
+      "prompt": {
+        "context": "Count subarrays with sum equal to k. Array may contain negative numbers. Review this code:\n\n```python\ndef subarray_sum(nums, k):\n    count = 0\n    prefix = 0\n    prefix_counts = {0: 1}\n    for num in nums:\n        prefix += num\n        count += prefix_counts.get(prefix - k, 0)\n        prefix_counts[prefix] = prefix_counts.get(prefix, 0) + 1\n    return count\n```\n\nA colleague suggests using sliding window instead:\n```python\ndef subarray_sum(nums, k):\n    count = 0\n    left = 0\n    window_sum = 0\n    for right in range(len(nums)):\n        window_sum += nums[right]\n        while window_sum > k and left <= right:\n            window_sum -= nums[left]\n            left += 1\n        if window_sum == k:\n            count += 1\n    return count\n```",
+        "constraints": [
+          "Array contains positive AND negative integers",
+          "Length: 1 to 2 \u00d7 10^4",
+          "k can be any integer",
+          "Count ALL subarrays, not just one"
+        ],
+        "question": "Which implementation is correct for this problem?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-subarray-sum-k-opt-prefix",
+          "label": "Only the prefix sum version",
+          "description": "The sliding window fails with negative numbers. Prefix sum + hash map handles all integers correctly."
+        },
+        {
+          "id": "dsa-dsa-subarray-sum-k-opt-sliding",
+          "label": "Only the sliding window version",
+          "description": "Sliding window is more space-efficient and handles the general case."
+        },
+        {
+          "id": "dsa-dsa-subarray-sum-k-opt-both",
+          "label": "Both are correct",
+          "description": "Both handle negative numbers and produce the same result."
+        },
+        {
+          "id": "dsa-dsa-subarray-sum-k-opt-neither",
+          "label": "Neither handles all cases",
+          "description": "Both have edge cases with negative numbers."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-subarray-sum-k-opt-prefix",
+      "explanation": {
+        "reasoning": "**Sliding window FAILS with negative numbers.** The `while window_sum > k` assumption breaks because removing elements from the left might increase or decrease the sum unpredictably when negatives are present. Example: nums=[-1, 2, 3], k=4. The sliding window misses valid subarrays.\n\nThe prefix sum solution works because of this identity:\n- If `prefix[j] - prefix[i] == k`, then subarray `nums[i+1..j]` sums to `k`\n- For each `j`, count how many previous prefix sums equal `prefix[j] - k`\n- The hash map tracks these frequencies in O(1)\n\n```python\n# Interview-ready with comments:\ndef subarray_sum(nums: list[int], k: int) -> int:\n    count = 0\n    prefix = 0\n    # {prefix_sum: frequency} \u2014 how many times we've seen this prefix sum\n    prefix_counts = {0: 1}  # empty prefix (sum=0) seen once\n    \n    for num in nums:\n        prefix += num\n        # How many previous prefixes make a valid subarray ending here?\n        count += prefix_counts.get(prefix - k, 0)\n        # Record current prefix sum\n        prefix_counts[prefix] = prefix_counts.get(prefix, 0) + 1\n    \n    return count\n\n# Time: O(n), Space: O(n)\n# Key insight: prefix[j] - prefix[i] == k  \u27fa  prefix[i] == prefix[j] - k\n```",
+        "tradeoffs": "Sliding window works ONLY for positive-integer arrays (or when you can guarantee monotonic behavior). For the positive-only variant, sliding window uses O(1) space vs O(n) for prefix sum. Always check: does the array contain negatives? If yes, prefix sum + hash map is the only O(n) approach.",
+        "keyTakeaway": "prefix_sum + hash_map is THE pattern for subarray sum problems with negatives. Sliding window only works with positives. The hash map stores {prefix_sum: count}, and the key lookup is `prefix - k`. Initialize with {0: 1} for subarrays starting at index 0.",
+        "commonMistake": "Using sliding window when the array has negative numbers. The window can't reliably shrink because removing a negative element increases the sum. ALWAYS check sign constraints before choosing sliding window vs prefix sum."
+      }
+    },
+    {
+      "id": "dsa-dsa-backtrack-subsets",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "backtracking",
+        "recursion",
+        "subsets"
+      ],
+      "concepts": [
+        "backtracking"
+      ],
+      "prompt": {
+        "context": "Generate all subsets (power set) of a list of unique integers. Two approaches:\n\n**Backtracking:**\n```python\ndef subsets(nums):\n    result = []\n    def backtrack(start, current):\n        result.append(current[:])\n        for i in range(start, len(nums)):\n            current.append(nums[i])\n            backtrack(i + 1, current)\n            current.pop()\n    backtrack(0, [])\n    return result\n```\n\n**Iterative (cascading):**\n```python\ndef subsets(nums):\n    result = [[]]\n    for num in nums:\n        result += [subset + [num] for subset in result]\n    return result\n```\n\nNow the follow-up: what if nums can contain **duplicates** and you need unique subsets?",
+        "constraints": [
+          "nums may contain duplicates in the follow-up",
+          "Each subset must be unique",
+          "Subsets can be in any order"
+        ],
+        "question": "How do you modify the backtracking approach to handle duplicates?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-backtrack-subsets-opt-sort-skip",
+          "label": "Sort + skip same-level duplicates",
+          "description": "Sort nums first. In the loop, skip nums[i] if nums[i] == nums[i-1] and i > start."
+        },
+        {
+          "id": "dsa-dsa-backtrack-subsets-opt-set",
+          "label": "Use a set of tuples to deduplicate",
+          "description": "Generate all subsets, convert to tuples, put in a set, convert back."
+        },
+        {
+          "id": "dsa-dsa-backtrack-subsets-opt-visited",
+          "label": "Use a visited boolean array",
+          "description": "Track which indices have been used to avoid picking the same element twice."
+        },
+        {
+          "id": "dsa-dsa-backtrack-subsets-opt-no-change",
+          "label": "No change needed \u2014 backtracking handles it",
+          "description": "The i+1 parameter already prevents duplicates."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-backtrack-subsets-opt-sort-skip",
+      "explanation": {
+        "reasoning": "Sort the array so duplicates are adjacent. Then at each recursion level, skip a number if it's the same as the previous number at that level (i > start ensures we only skip same-level duplicates, not the first occurrence).\n\n```python\n# Subsets with duplicates (interview-ready):\ndef subsets_with_dup(nums: list[int]) -> list[list[int]]:\n    nums.sort()  # CRITICAL: group duplicates together\n    result = []\n    \n    def backtrack(start, current):\n        result.append(current[:])\n        for i in range(start, len(nums)):\n            # Skip duplicate at same recursion level\n            if i > start and nums[i] == nums[i - 1]:\n                continue\n            current.append(nums[i])\n            backtrack(i + 1, current)\n            current.pop()\n    \n    backtrack(0, [])\n    return result\n\n# Same pattern works for:\n# - Combination Sum II (skip dups)\n# - Permutations II (sort + skip if nums[i]==nums[i-1] and not used[i-1])\n# - Subsets II (this problem)\n```\n\nWhy `i > start`? At each level of recursion, `start` is the first index we consider. If `i == start`, this is the first choice at this level \u2014 always include it. If `i > start` and the value equals the previous, we've already explored a branch with this value at this level.",
+        "tradeoffs": "The set approach works but is O(2^n) extra space for deduplication and can't prune early. Sort + skip prunes the search tree itself, avoiding generating duplicates in the first place. This is significantly faster for large inputs with many duplicates.",
+        "keyTakeaway": "Backtracking duplicate elimination pattern: SORT first, then `if i > start and nums[i] == nums[i-1]: continue`. This works for subsets, combinations, and with slight modification (using a `used[]` array) for permutations. It's the universal dedup trick for backtracking.",
+        "commonMistake": "Using `i > 0` instead of `i > start`. `i > 0` would skip valid choices in deeper recursion levels. The condition must be `i > start` to only skip duplicates at the SAME recursion level (same decision point)."
+      }
+    },
+    {
+      "id": "dsa-dsa-monotonic-stack",
+      "type": "decision",
+      "difficulty": 4,
+      "tags": [
+        "stack",
+        "monotonic",
+        "next-greater"
+      ],
+      "concepts": [
+        "stacks-queues"
+      ],
+      "prompt": {
+        "context": "Next Greater Element \u2014 for each element in an array, find the next element to its right that is larger. Return -1 if no such element exists. Example: [2,1,2,4,3] \u2192 [4,2,4,-1,-1]\n\n```python\ndef next_greater(nums):\n    n = len(nums)\n    result = [-1] * n\n    stack = []  # stores indices\n    \n    for i in range(n):\n        while stack and nums[i] > nums[stack[-1]]:\n            idx = stack.pop()\n            result[idx] = nums[i]\n        stack.append(i)\n    \n    return result\n```\n\nTrace through [2,1,2,4,3]:\n- i=0: stack=[], push 0. stack=[0]\n- i=1: nums[1]=1 < nums[0]=2, push 1. stack=[0,1]\n- i=2: nums[2]=2 > nums[1]=1, pop 1, result[1]=2. nums[2]=2 = nums[0]=2, stop. push 2. stack=[0,2]\n- i=3: nums[3]=4 > nums[2]=2, pop 2, result[2]=4. nums[3]=4 > nums[0]=2, pop 0, result[0]=4. push 3. stack=[3]\n- i=4: nums[4]=3 < nums[3]=4, push 4. stack=[3,4]\n- Result: [4,2,4,-1,-1] \u2713",
+        "constraints": [
+          "Array length: 1 to 10^4",
+          "Must be O(n) time",
+          "Return -1 for elements with no next greater"
+        ],
+        "question": "What type of stack is this, and what invariant does it maintain?"
+      },
+      "options": [
+        {
+          "id": "dsa-dsa-monotonic-stack-opt-mono-dec",
+          "label": "Monotonic decreasing stack",
+          "description": "Stack maintains decreasing order (top is smallest). New elements pop anything smaller, becoming their 'next greater'."
+        },
+        {
+          "id": "dsa-dsa-monotonic-stack-opt-mono-inc",
+          "label": "Monotonic increasing stack",
+          "description": "Stack maintains increasing order (top is largest). New elements pop anything larger."
+        },
+        {
+          "id": "dsa-dsa-monotonic-stack-opt-regular",
+          "label": "Regular stack, no invariant",
+          "description": "The stack has no ordering property; it just stores unresolved elements."
+        },
+        {
+          "id": "dsa-dsa-monotonic-stack-opt-minstack",
+          "label": "Min-stack tracking minimums",
+          "description": "Stack tracks the minimum element at each level for efficient min queries."
+        }
+      ],
+      "correctOptionId": "dsa-dsa-monotonic-stack-opt-mono-dec",
+      "explanation": {
+        "reasoning": "This is a **monotonic decreasing stack** (bottom to top: largest to smallest). The invariant: at any point, elements in the stack from bottom to top are in decreasing order.\n\nWhen a new element is larger than the stack top, it 'resolves' all smaller elements by being their next greater element. Elements stay on the stack until something bigger arrives.\n\n```python\n# Monotonic stack template \u2014 next greater element:\ndef next_greater(nums: list[int]) -> list[int]:\n    n = len(nums)\n    result = [-1] * n\n    stack = []  # monotonic decreasing stack of indices\n    for i in range(n):\n        while stack and nums[i] > nums[stack[-1]]:\n            result[stack.pop()] = nums[i]\n        stack.append(i)\n    return result\n\n# Variations:\n# Next SMALLER element: change > to <\n# PREVIOUS greater: iterate right to left\n# Circular array: iterate 0..2n-1, use i % n\n\n# Daily Temperatures (same pattern):\ndef daily_temperatures(temperatures: list[int]) -> list[int]:\n    n = len(temperatures)\n    result = [0] * n\n    stack = []\n    for i in range(n):\n        while stack and temperatures[i] > temperatures[stack[-1]]:\n            idx = stack.pop()\n            result[idx] = i - idx  # days until warmer\n        stack.append(i)\n    return result\n```\n\nAmortized O(n): each element is pushed once and popped at most once \u2192 2n operations total.",
+        "tradeoffs": "Brute force is O(n\u00b2) \u2014 for each element, scan right to find the next greater. The monotonic stack does this in O(n) amortized by resolving multiple elements in batch when a large element arrives. It's the standard approach for 'next greater/smaller' family of problems.",
+        "keyTakeaway": "Monotonic stack pattern: maintain a stack in sorted order. When a new element violates the ordering, pop elements and use the new element to 'resolve' them. Key variants: next greater (decreasing stack), next smaller (increasing stack), previous greater/smaller (reverse iteration).",
+        "commonMistake": "Thinking the stack is O(n\u00b2) because of the while loop inside the for loop. It's O(n) amortized \u2014 each element enters and leaves the stack exactly once. Total operations across all iterations: 2n."
+      }
+    }
+  ]
+}

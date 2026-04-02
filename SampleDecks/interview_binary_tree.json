@@ -1,0 +1,877 @@
+{
+  "id": "interview-binary-tree",
+  "title": "Binary Tree \u2014 Interview Patterns",
+  "description": "Key patterns, subtleties, and recall for binary tree and BST interview problems. Covers traversals, recursion patterns, BST properties, and construction.",
+  "domain": "Data Structures & Algorithms",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "traversal",
+      "name": "Tree Traversal",
+      "description": "Inorder, preorder, postorder, level-order \u2014 recursive and iterative"
+    },
+    {
+      "id": "bst-properties",
+      "name": "BST Properties",
+      "description": "Validation, search, insert, delete, and sorted-order tricks"
+    },
+    {
+      "id": "recursion-patterns",
+      "name": "Recursion Patterns",
+      "description": "Top-down vs bottom-up, passing state, global variable patterns"
+    },
+    {
+      "id": "tree-construction",
+      "name": "Tree Construction",
+      "description": "Building trees from traversals, serialization/deserialization"
+    },
+    {
+      "id": "path-problems",
+      "name": "Path Problems",
+      "description": "Path sum, diameter, max path sum, LCA"
+    },
+    {
+      "id": "level-operations",
+      "name": "Level-Order Operations",
+      "description": "BFS-based problems: zigzag, right side view, level averages"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "bt-s01",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "traversal",
+        "bst-properties"
+      ],
+      "prompt": {
+        "context": "You have a Binary Search Tree and need to retrieve all values in sorted order.",
+        "question": "Which traversal gives you BST values in sorted order?"
+      },
+      "options": [
+        {
+          "id": "bt-s01-o1",
+          "label": "Inorder traversal (left, root, right) \u2014 visits nodes in ascending sorted order for a BST",
+          "description": "By definition of BST, all left subtree values < root < all right subtree values. Inorder visits them in this natural order."
+        },
+        {
+          "id": "bt-s01-o2",
+          "label": "Preorder traversal (root, left, right) \u2014 processes parent before children giving sorted order",
+          "description": "Preorder visits the root first which is always the median value"
+        },
+        {
+          "id": "bt-s01-o3",
+          "label": "Level-order traversal \u2014 BST levels correspond to sorted ranges",
+          "description": "BFS visits nodes level by level which gives ascending order"
+        }
+      ],
+      "correctOptionId": "bt-s01-o1",
+      "explanation": {
+        "reasoning": "In a BST, for every node: all values in the left subtree are smaller, and all values in the right subtree are larger. Inorder traversal visits left subtree first (smaller values), then the node itself, then the right subtree (larger values). This recursion produces values in ascending sorted order.",
+        "tradeoffs": "Inorder traversal is O(n) time and O(h) space where h is the tree height. For a balanced BST, h = O(log n). Morris traversal can achieve O(1) space inorder. Knowing that inorder = sorted is fundamental \u2014 it's used in BST validation, kth smallest, and many other problems.",
+        "keyTakeaway": "Inorder traversal of a BST produces values in sorted ascending order. This is the most fundamental BST property to remember.",
+        "commonMistake": "Confusing inorder (left-root-right) with preorder (root-left-right). Preorder is useful for serialization, not for sorted output."
+      }
+    },
+    {
+      "id": "bt-s02",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "traversal"
+      ],
+      "prompt": {
+        "context": "You need to implement inorder traversal iteratively (without recursion). You're using a stack.",
+        "question": "What is the iterative inorder traversal pattern?"
+      },
+      "options": [
+        {
+          "id": "bt-s02-o1",
+          "label": "Push all left children onto stack. Pop \u2192 process \u2192 move to right child. Repeat. The loop continues while stack is non-empty OR current node is non-null.",
+          "description": "Go left as far as possible (pushing onto stack), pop and process, then go right and repeat"
+        },
+        {
+          "id": "bt-s02-o2",
+          "label": "Push root, then alternate between popping and pushing left/right children",
+          "description": "Push root first, then push children in reverse order after each pop"
+        },
+        {
+          "id": "bt-s02-o3",
+          "label": "Push root and all right children first, then process the stack",
+          "description": "Stack all right-side nodes, then unwind for inorder"
+        }
+      ],
+      "correctOptionId": "bt-s02-o1",
+      "explanation": {
+        "reasoning": "The pattern: (1) Start at root. (2) Go left as far as possible, pushing each node onto the stack. (3) When you can't go left anymore, pop from stack \u2014 this is the next inorder node. (4) Process it, then move to its right child. (5) Repeat from step 2. The outer loop continues while the stack is non-empty OR current is non-null (current being non-null means there are still left children to explore).",
+        "tradeoffs": "Iterative inorder is important because recursion can overflow the stack for very deep trees. The iterative version uses explicit stack management and is O(h) space, same as recursive. Morris traversal achieves O(1) space by threading the tree.",
+        "keyTakeaway": "Iterative inorder: go left (push), pop (process), go right. Loop while stack or current. This is the #1 most important iterative tree traversal to memorize.",
+        "commonMistake": "Using 'while stack is non-empty' as the only loop condition. You also need 'or current is non-null' because after processing a node with no right child, the current is null but the stack still has ancestors to process."
+      }
+    },
+    {
+      "id": "bt-s03",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "traversal",
+        "tree-construction"
+      ],
+      "prompt": {
+        "context": "You need to serialize a binary tree to a string and deserialize it back. You're choosing which traversal to use.",
+        "question": "Why is preorder traversal commonly used for serialization?"
+      },
+      "options": [
+        {
+          "id": "bt-s03-o1",
+          "label": "Preorder visits the root first, so during deserialization you can reconstruct the tree top-down \u2014 each value you read is the next root to place",
+          "description": "Root-first order allows streaming construction: read a value, make it the root, then recursively build left and right subtrees"
+        },
+        {
+          "id": "bt-s03-o2",
+          "label": "Preorder produces the most compact string representation",
+          "description": "Preorder encoding uses fewer characters than other traversals"
+        },
+        {
+          "id": "bt-s03-o3",
+          "label": "Only preorder can represent null nodes; inorder and postorder cannot",
+          "description": "The other traversals have no way to encode missing children"
+        }
+      ],
+      "correctOptionId": "bt-s03-o1",
+      "explanation": {
+        "reasoning": "Preorder (root, left, right) visits the root first. When serializing, you output the root value, then recursively serialize left and right subtrees, using a sentinel (like 'null' or '#') for missing children. During deserialization, you read values sequentially: each value becomes a root, then you recursively build its left and right children. This top-down construction mirrors the preorder output perfectly.",
+        "tradeoffs": "Level-order (BFS) also works for serialization \u2014 it's what LeetCode uses for its tree representation. Postorder can work but requires building bottom-up which is less intuitive. Inorder alone is insufficient \u2014 you can't uniquely reconstruct a tree from inorder alone (you need inorder + preorder or inorder + postorder).",
+        "keyTakeaway": "Preorder is natural for serialization because root-first order allows top-down reconstruction. Include null markers to handle missing children. Deserialize by reading values in order and recursively building subtrees.",
+        "commonMistake": "Trying to deserialize from inorder traversal alone. Inorder doesn't give you enough information to reconstruct the tree uniquely \u2014 you need a second traversal or null markers."
+      }
+    },
+    {
+      "id": "bt-s04",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bst-properties"
+      ],
+      "prompt": {
+        "context": "You're validating whether a binary tree is a valid BST. A colleague writes:\n\ndef isValidBST(node):\n    if not node: return True\n    if node.left and node.left.val >= node.val: return False\n    if node.right and node.right.val <= node.val: return False\n    return isValidBST(node.left) and isValidBST(node.right)",
+        "question": "Why is this solution incorrect?"
+      },
+      "options": [
+        {
+          "id": "bt-s04-o1",
+          "label": "It only checks immediate children, not the entire subtree. A node deep in the left subtree could be larger than an ancestor, violating BST property.",
+          "description": "Example: root=5, root.left=3, root.left.right=7. Node 7 is in the left subtree of 5 but is > 5. This code wouldn't catch it because 7 < 3 is checked (fails correctly) wait \u2014 actually 7 > 3 so the right child check of node 3 passes. But 7 > 5 violates the BST constraint inherited from the root."
+        },
+        {
+          "id": "bt-s04-o2",
+          "label": "The code doesn't handle duplicate values correctly",
+          "description": "BST validation fails only on duplicate handling edge cases"
+        },
+        {
+          "id": "bt-s04-o3",
+          "label": "The base case should return False for null nodes, not True",
+          "description": "Null nodes indicate an invalid tree structure"
+        }
+      ],
+      "correctOptionId": "bt-s04-o1",
+      "explanation": {
+        "reasoning": "The BST property isn't just about parent-child relationships \u2014 it's about ENTIRE subtrees. Every node in the left subtree must be less than the root, not just the immediate left child. The fix: pass min/max bounds down the recursion. isValidBST(node, min_val, max_val): check min_val < node.val < max_val. When going left, update max to node.val. When going right, update min to node.val. Start with (-inf, +inf).",
+        "tradeoffs": "Alternative: do an inorder traversal and check that values are strictly increasing. This is arguably simpler and harder to get wrong. Both approaches are O(n) time, O(h) space.",
+        "keyTakeaway": "BST validation requires passing min/max bounds down the recursion \u2014 checking only immediate children is insufficient. The constraint is: ALL nodes in left subtree < root < ALL nodes in right subtree.",
+        "commonMistake": "The exact bug in the code above: only checking node.left.val < node.val and node.right.val > node.val. This misses violations deeper in the tree where a node violates an ancestor's constraint."
+      }
+    },
+    {
+      "id": "bt-s05",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "bst-properties"
+      ],
+      "prompt": {
+        "context": "You're analyzing the time complexity of searching for a value in a BST.",
+        "question": "What is the average vs worst case time complexity for BST search?"
+      },
+      "options": [
+        {
+          "id": "bt-s05-o1",
+          "label": "Average: O(log n) for a balanced BST. Worst: O(n) for a skewed/degenerate BST (essentially a linked list).",
+          "description": "A balanced tree has height log n, but inserting sorted data creates a linear chain with height n"
+        },
+        {
+          "id": "bt-s05-o2",
+          "label": "Always O(log n) regardless of shape \u2014 that's the guarantee of a BST",
+          "description": "BST structure inherently provides logarithmic search"
+        },
+        {
+          "id": "bt-s05-o3",
+          "label": "Average: O(n). Worst: O(n log n). BSTs aren't efficient for search.",
+          "description": "BSTs are no better than linear search on average"
+        }
+      ],
+      "correctOptionId": "bt-s05-o1",
+      "explanation": {
+        "reasoning": "BST search follows a root-to-leaf path, so time complexity equals the tree height. A balanced BST has height O(log n), giving O(log n) search. But a BST with sorted insertions (1, 2, 3, 4, 5) becomes a right-skewed chain with height n \u2014 effectively a linked list. Search becomes O(n). This is why self-balancing BSTs (AVL, Red-Black) exist: they guarantee O(log n) height through rotations.",
+        "tradeoffs": "If you need guaranteed O(log n) operations, use a self-balancing BST (e.g., TreeMap in Java, std::map in C++). Plain BSTs only give O(log n) on average with random insertion order. In interviews, you typically assume balanced BST unless stated otherwise, but mention the worst case.",
+        "keyTakeaway": "BST search is O(h) where h is height. Balanced: h = O(log n). Worst (skewed): h = O(n). Self-balancing BSTs guarantee O(log n).",
+        "commonMistake": "Stating BST search is always O(log n). It's only O(log n) when balanced. Without balancing guarantees, inserting sorted data creates O(n) height."
+      }
+    },
+    {
+      "id": "bt-s06",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "bst-properties",
+        "traversal"
+      ],
+      "prompt": {
+        "context": "You need to find the kth smallest element in a BST.",
+        "question": "Which traversal directly gives you the kth smallest without sorting?"
+      },
+      "options": [
+        {
+          "id": "bt-s06-o1",
+          "label": "Inorder traversal \u2014 the kth node visited is the kth smallest. Stop early after visiting k nodes.",
+          "description": "Since inorder visits BST nodes in ascending order, counting to k gives the kth smallest directly"
+        },
+        {
+          "id": "bt-s06-o2",
+          "label": "Level-order (BFS) traversal \u2014 the kth node at the deepest level is the kth smallest",
+          "description": "BFS processes nodes by level which corresponds to value order in a BST"
+        },
+        {
+          "id": "bt-s06-o3",
+          "label": "Preorder traversal \u2014 roots are always medians, so you can binary search for kth smallest",
+          "description": "Preorder gives you pivots for binary searching the kth element"
+        }
+      ],
+      "correctOptionId": "bt-s06-o1",
+      "explanation": {
+        "reasoning": "Inorder traversal of a BST visits nodes in ascending sorted order. To find the kth smallest, simply do an inorder traversal and count: when you've visited k nodes, the current node is the answer. You can stop early \u2014 no need to traverse the entire tree. Time: O(h + k) where h is height (to reach the leftmost node) and k is how many nodes you visit.",
+        "tradeoffs": "If k queries are frequent, augment each node with a 'left subtree size' count. Then you can find the kth smallest in O(h) time by comparing k with left subtree sizes to decide which direction to go (like binary search on the tree structure).",
+        "keyTakeaway": "Kth smallest in BST = inorder traversal, stop at the kth node. O(h + k) time. For frequent queries, augment nodes with subtree sizes for O(h) per query.",
+        "commonMistake": "Traversing the entire tree and storing all values in an array, then returning array[k-1]. This is O(n) when you only need O(h + k). Stop the inorder traversal early."
+      }
+    },
+    {
+      "id": "bt-s07",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bst-properties"
+      ],
+      "prompt": {
+        "context": "You're implementing BST deletion. You've handled two easy cases:\n- Leaf node: just remove it\n- One child: replace node with its child\n\nNow you face the hard case: deleting a node with TWO children.",
+        "question": "How do you delete a node with two children from a BST?"
+      },
+      "options": [
+        {
+          "id": "bt-s07-o1",
+          "label": "Replace the node's value with its inorder successor (smallest node in right subtree), then delete the successor from the right subtree",
+          "description": "The inorder successor is the leftmost node in the right subtree. It has at most one child (right), making it easy to delete."
+        },
+        {
+          "id": "bt-s07-o2",
+          "label": "Remove the node and re-insert all its descendants into the BST one by one",
+          "description": "Detach the subtree and re-insert each node"
+        },
+        {
+          "id": "bt-s07-o3",
+          "label": "Swap the node with the root and then delete it from the root position",
+          "description": "Moving the node to the root simplifies deletion"
+        }
+      ],
+      "correctOptionId": "bt-s07-o1",
+      "explanation": {
+        "reasoning": "Find the inorder successor \u2014 the smallest value in the right subtree (go right once, then left as far as possible). Copy the successor's value into the node being deleted. Then delete the successor from the right subtree. The successor has at most one child (it can't have a left child, since it's the leftmost node in the right subtree), so deleting it is the easy one-child case. Alternatively, you can use the inorder predecessor (largest in left subtree).",
+        "tradeoffs": "Both inorder successor and predecessor work. Some implementations alternate between them to keep the tree balanced. The key insight is that the successor/predecessor maintains BST ordering when placed at the deleted node's position. Time: O(h) for finding and deleting the successor.",
+        "keyTakeaway": "Delete node with 2 children: replace its value with the inorder successor (or predecessor), then delete the successor. The successor is the leftmost node in the right subtree and has at most one child.",
+        "commonMistake": "Trying to directly remove the node and reconnect both subtrees. This is complex and error-prone. The copy-value-then-delete-successor approach is cleaner and maintains BST properties."
+      }
+    },
+    {
+      "id": "bt-s08",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "tree-construction",
+        "bst-properties"
+      ],
+      "prompt": {
+        "context": "You're given a sorted array and need to create a height-balanced BST (where the depth of the two subtrees of every node never differs by more than one).",
+        "question": "What is the approach to convert a sorted array to a balanced BST?"
+      },
+      "options": [
+        {
+          "id": "bt-s08-o1",
+          "label": "Pick the middle element as root, recursively build left subtree from the left half and right subtree from the right half",
+          "description": "The middle element ensures roughly equal numbers of nodes on each side, maintaining balance"
+        },
+        {
+          "id": "bt-s08-o2",
+          "label": "Insert elements one by one in the given sorted order",
+          "description": "Inserting sorted elements into a BST produces a balanced tree"
+        },
+        {
+          "id": "bt-s08-o3",
+          "label": "Pick the first element as root, then binary search for the best position for each subsequent element",
+          "description": "Binary search placement ensures balance"
+        }
+      ],
+      "correctOptionId": "bt-s08-o1",
+      "explanation": {
+        "reasoning": "The divide-and-conquer approach: pick the middle element as the root (this ensures roughly equal elements on each side). Recursively build the left subtree from elements before the middle, and the right subtree from elements after. This naturally produces a height-balanced BST because each level splits the remaining elements roughly in half. Time: O(n), Space: O(log n) for recursion.",
+        "tradeoffs": "Inserting elements in sorted order (option 2) would create a completely skewed tree \u2014 the exact opposite of balanced. This is actually the worst case for BST construction. The divide-and-conquer approach is the only way to guarantee balance from a sorted sequence.",
+        "keyTakeaway": "Sorted array to balanced BST: pick middle as root, recurse on left and right halves. This is similar to how binary search divides the array \u2014 the tree structure mirrors binary search.",
+        "commonMistake": "Inserting sorted elements sequentially into a BST. This creates a degenerate (linked-list-like) tree with height n. Always use the middle-element divide-and-conquer approach."
+      }
+    },
+    {
+      "id": "bt-s09",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "recursion-patterns"
+      ],
+      "prompt": {
+        "context": "You need to find the maximum depth (height) of a binary tree.",
+        "question": "What is the clean recursive solution?"
+      },
+      "options": [
+        {
+          "id": "bt-s09-o1",
+          "label": "return 0 if node is null, else return 1 + max(maxDepth(left), maxDepth(right))",
+          "description": "Base case: null node has depth 0. Recursive case: current node adds 1 to the deeper subtree's depth."
+        },
+        {
+          "id": "bt-s09-o2",
+          "label": "Count the total number of nodes and take log2 to get the depth",
+          "description": "Depth is logarithmic in the number of nodes"
+        },
+        {
+          "id": "bt-s09-o3",
+          "label": "Do BFS and count levels, but this requires O(n) extra space unlike the recursive O(1) approach",
+          "description": "BFS counts levels but recursion is zero-space"
+        }
+      ],
+      "correctOptionId": "bt-s09-o1",
+      "explanation": {
+        "reasoning": "The classic bottom-up recursion: if the node is null, return 0 (base case). Otherwise, recursively get the max depth of left and right subtrees, take the maximum, add 1 for the current node. This elegantly computes the height in O(n) time, O(h) space (recursion stack).",
+        "tradeoffs": "BFS level counting also works and is O(n) time, O(w) space where w is the max width. The recursive approach is O(h) space which is better for balanced trees but worse for skewed trees. In practice, the one-line recursive solution is what interviewers expect for this problem.",
+        "keyTakeaway": "Max depth = 1 + max(left depth, right depth), base case null \u2192 0. This is the quintessential bottom-up tree recursion pattern.",
+        "commonMistake": "Returning 1 instead of 0 for the null base case. A null node has depth 0. A single-node tree (leaf) should return 1 = 1 + max(0, 0)."
+      }
+    },
+    {
+      "id": "bt-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "recursion-patterns",
+        "path-problems"
+      ],
+      "prompt": {
+        "context": "You need to find the diameter of a binary tree \u2014 the length of the longest path between any two nodes (measured in edges). The path may or may not pass through the root.",
+        "question": "Why do you need a global/nonlocal variable (or return value trick) for this problem?"
+      },
+      "options": [
+        {
+          "id": "bt-s10-o1",
+          "label": "The longest path through any node is leftHeight + rightHeight, but you can only return ONE value (height) up to the parent. You need a separate variable to track the max diameter seen across all nodes.",
+          "description": "At each node, diameter = leftH + rightH. But you return max(leftH, rightH) + 1 upward. The diameter is a side effect tracked globally."
+        },
+        {
+          "id": "bt-s10-o2",
+          "label": "The diameter always passes through the root, so you just need root's left height + right height",
+          "description": "The longest path must go through the top of the tree"
+        },
+        {
+          "id": "bt-s10-o3",
+          "label": "You need to store all path lengths in an array and find the maximum after traversal",
+          "description": "Collect all possible path lengths and return the max"
+        }
+      ],
+      "correctOptionId": "bt-s10-o1",
+      "explanation": {
+        "reasoning": "At each node, the longest path THROUGH that node is leftHeight + rightHeight (going down left subtree and up right subtree). But the recursive function needs to return the HEIGHT (max one-side depth) to its parent, because the parent needs to compute its own path. Since you can only return one value, you use a global/nonlocal variable to track the maximum diameter seen at any node. At each node: diameter_candidate = leftH + rightH, update global max. Return 1 + max(leftH, rightH) to parent.",
+        "tradeoffs": "The key insight is that the 'answer' (diameter) and the 'return value' (height) are different things. This pattern appears in many tree problems: max path sum, longest univalue path, etc. You compute the answer as a side effect while returning auxiliary information up the recursion.",
+        "keyTakeaway": "Diameter = max over all nodes of (leftHeight + rightHeight). The recursive function returns height but tracks diameter separately. This 'side-effect tracking' pattern is fundamental.",
+        "commonMistake": "Assuming the diameter passes through the root. The longest path might be entirely in a subtree. You must check every node as a potential 'bend point' of the diameter."
+      }
+    },
+    {
+      "id": "bt-s11",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "recursion-patterns",
+        "path-problems"
+      ],
+      "prompt": {
+        "context": "You need to find the Lowest Common Ancestor (LCA) of two nodes p and q in a binary tree (not necessarily a BST).",
+        "question": "What is the recursive approach and what are the base cases?"
+      },
+      "options": [
+        {
+          "id": "bt-s11-o1",
+          "label": "Base: return null if node is null, return node if node == p or q. Recurse left and right. If both return non-null, current node is the LCA. If only one is non-null, return that one.",
+          "description": "When both sides find a target, the current node must be the LCA. When only one side finds targets, the LCA is in that subtree."
+        },
+        {
+          "id": "bt-s11-o2",
+          "label": "Find the paths from root to p and root to q, then find the last common node in both paths",
+          "description": "Store both paths and compare them element by element"
+        },
+        {
+          "id": "bt-s11-o3",
+          "label": "Start from p and q, move upward using parent pointers until the paths converge",
+          "description": "Use parent pointers to walk up from both nodes"
+        }
+      ],
+      "correctOptionId": "bt-s11-o1",
+      "explanation": {
+        "reasoning": "The elegant recursive LCA: (1) If node is null, return null. (2) If node is p or q, return node (found one target). (3) Recurse on left and right children. (4) If BOTH left and right return non-null, it means p and q are in different subtrees \u2014 current node is the LCA. (5) If only one is non-null, return that one (both p and q are in that subtree, and the first one found is the LCA).",
+        "tradeoffs": "This approach assumes both p and q exist in the tree. If one might be missing, you need an additional check. Time: O(n) worst case (visit every node). Space: O(h) for recursion. The path-comparison approach (option 2) also works and is easier to understand but uses O(h) extra space for storing paths.",
+        "keyTakeaway": "LCA recursion: if both subtrees return non-null, you're at the LCA. If only one returns non-null, the LCA is in that subtree. Base cases: null \u2192 null, found target \u2192 return it.",
+        "commonMistake": "Forgetting that if node == p and q is in p's subtree, then p itself is the LCA. The base case 'return node if node == p or q' handles this correctly because we stop searching deeper."
+      }
+    },
+    {
+      "id": "bt-s12",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "path-problems",
+        "recursion-patterns"
+      ],
+      "prompt": {
+        "context": "Binary Tree Maximum Path Sum (LC 124): A path can start and end at any node and goes through parent-child connections. The path doesn't need to pass through the root. Find the maximum sum.\n\nAt each node, you can either:\n- Extend the path upward (to the parent) through one branch\n- Form a complete path using both branches (but then you can't extend further up)",
+        "question": "Why can you only extend ONE branch upward to the parent?"
+      },
+      "options": [
+        {
+          "id": "bt-s12-o1",
+          "label": "A path can't fork \u2014 if you use both left and right branches, the path bends at this node and can't continue to the parent. You can only send one branch's sum upward.",
+          "description": "A valid path is a sequence of connected nodes. If the path goes left-node-right, it already has two endpoints in the subtrees and can't extend further up."
+        },
+        {
+          "id": "bt-s12-o2",
+          "label": "You can extend both branches upward \u2014 the constraint is on total path length, not branching",
+          "description": "Paths can fork as long as the total number of nodes is reasonable"
+        },
+        {
+          "id": "bt-s12-o3",
+          "label": "You always extend the larger branch upward for the greedy optimal solution",
+          "description": "The greedy choice is always correct for maximum path sum"
+        }
+      ],
+      "correctOptionId": "bt-s12-o1",
+      "explanation": {
+        "reasoning": "A path is a sequence of nodes connected by edges \u2014 it can't fork. At each node, you have two choices: (1) Use both left and right branches \u2014 the path goes left\u2197node\u2198right. This is a complete path with two endpoints in the subtrees. You can't extend it to the parent because that would create a fork. (2) Use at most one branch and extend to the parent \u2014 the path goes left\u2197node\u2197parent (or right\u2197node\u2197parent). So: track the max path sum globally (considering both-branch paths), but RETURN only the best single-branch sum to the parent.",
+        "tradeoffs": "This is the same pattern as diameter: the answer (max path sum using both branches) and the return value (max single-branch sum for the parent to use) are different things. Global variable tracks the answer; return value propagates information. Time: O(n), Space: O(h).",
+        "keyTakeaway": "Max path sum: at each node, the path can use both branches (local answer) or one branch (return to parent). Track the global max separately. Return max(left, right, 0) + node.val to parent.",
+        "commonMistake": "Returning left + right + node.val to the parent. This would allow the parent to create a forking path. Only return the best single branch: max(left, right, 0) + node.val."
+      }
+    },
+    {
+      "id": "bt-s13",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "path-problems"
+      ],
+      "prompt": {
+        "context": "Path Sum I (LC 112): Given a binary tree and a target sum, determine if the tree has a root-to-leaf path where the values sum to the target.\n\nYou subtract the current node's value from the target as you recurse down.",
+        "question": "When do you check if the remaining target equals zero?"
+      },
+      "options": [
+        {
+          "id": "bt-s13-o1",
+          "label": "Only at leaf nodes \u2014 a root-to-leaf path must end at a leaf (node with no children)",
+          "description": "Check target == 0 only when both left and right children are null. Interior nodes that happen to hit the target don't count."
+        },
+        {
+          "id": "bt-s13-o2",
+          "label": "At every node \u2014 if the remaining target hits zero at any point, we've found a valid path",
+          "description": "Check at every recursive call since any node can be the endpoint"
+        },
+        {
+          "id": "bt-s13-o3",
+          "label": "At null nodes \u2014 when you go past a leaf, the remaining target should be zero",
+          "description": "Check at the null children of leaves"
+        }
+      ],
+      "correctOptionId": "bt-s13-o1",
+      "explanation": {
+        "reasoning": "The problem specifies ROOT-TO-LEAF path. A leaf is a node with no children. You must check target == node.val (or remaining == 0 after subtraction) only when node.left == null AND node.right == null. Checking at interior nodes would accept partial paths that don't reach a leaf. Checking at null nodes causes issues with non-leaf single-child nodes.",
+        "tradeoffs": "If checking at null nodes: for a node with only a left child, the right child is null. If remaining happens to be 0, you'd incorrectly accept a path ending at a non-leaf. This is a subtle bug. Always check at the leaf node itself, not at null children.",
+        "keyTakeaway": "Path Sum I: check target == 0 ONLY at leaf nodes (no children). Interior nodes and null nodes are not valid endpoints for a root-to-leaf path.",
+        "commonMistake": "Checking the target at null nodes instead of leaf nodes. This causes false positives when a non-leaf node with one child happens to sum to the target."
+      }
+    },
+    {
+      "id": "bt-s14",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "path-problems"
+      ],
+      "prompt": {
+        "context": "Path Sum III (LC 437): Count the number of paths that sum to a target value. The path can start and end at ANY node (doesn't need to be root-to-leaf), but must go downward (parent to child only).",
+        "question": "What's the O(n) approach using prefix sums?"
+      },
+      "options": [
+        {
+          "id": "bt-s14-o1",
+          "label": "Maintain a hashmap of prefix sums along the current root-to-node path. At each node, check if (currentSum - target) exists in the map \u2014 that means a subpath ending here sums to target.",
+          "description": "Same idea as the subarray sum equals k problem: prefix_sum[j] - prefix_sum[i] = target means the subarray (i,j] sums to target. Here, the 'subarray' is a downward path."
+        },
+        {
+          "id": "bt-s14-o2",
+          "label": "From each node, run a DFS downward checking all possible path sums. This gives O(n^2) which is optimal.",
+          "description": "The brute force of checking every starting node is the best we can do"
+        },
+        {
+          "id": "bt-s14-o3",
+          "label": "Do a level-order traversal and use dynamic programming on each level to track sums",
+          "description": "BFS with per-level DP accumulates path sums"
+        }
+      ],
+      "correctOptionId": "bt-s14-o1",
+      "explanation": {
+        "reasoning": "This is the 'subarray sum equals k' trick applied to tree paths. Maintain a running sum from root to current node. Use a hashmap counting how many times each prefix sum has occurred on the current path. At each node: if (currentSum - target) is in the map, those occurrences represent starting points where a subpath ending at the current node sums to target. Key: backtrack (remove current sum from map) when returning from recursion, since the path is no longer active.",
+        "tradeoffs": "The brute force approach (DFS from every node) is O(n^2) for balanced trees, O(n^2) worst case. The prefix sum approach is O(n) time, O(h) space. The backtracking step (removing from map when recursion returns) is crucial \u2014 without it, you'd count paths across different branches.",
+        "keyTakeaway": "Path Sum III = prefix sum technique on tree paths. HashMap tracks prefix sums on the current root-to-node path. Check if (currentSum - target) exists. Backtrack when leaving a node.",
+        "commonMistake": "Forgetting to remove the current prefix sum from the hashmap when backtracking. This would let paths from one branch 'see' prefix sums from a sibling branch, counting invalid paths that aren't strictly downward."
+      }
+    },
+    {
+      "id": "bt-s15",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "recursion-patterns"
+      ],
+      "prompt": {
+        "context": "You need to check if a binary tree is symmetric (mirror image of itself).",
+        "question": "What two things do you compare at each recursive step?"
+      },
+      "options": [
+        {
+          "id": "bt-s15-o1",
+          "label": "Compare two nodes: left.val == right.val, then recursively check isMirror(left.left, right.right) AND isMirror(left.right, right.left)",
+          "description": "Mirror symmetry means the left child's left subtree mirrors the right child's right subtree, and vice versa"
+        },
+        {
+          "id": "bt-s15-o2",
+          "label": "Compare left subtree values with right subtree values sorted in reverse",
+          "description": "Collect values from each subtree and compare reversed lists"
+        },
+        {
+          "id": "bt-s15-o3",
+          "label": "Compare inorder traversal of left subtree with inorder traversal of right subtree",
+          "description": "If both inorder sequences are identical, the tree is symmetric"
+        }
+      ],
+      "correctOptionId": "bt-s15-o1",
+      "explanation": {
+        "reasoning": "A symmetric tree means the left subtree is a mirror reflection of the right subtree. Start by comparing the two children of the root. For two nodes to be mirrors: (1) their values must be equal, (2) the left's left subtree must mirror the right's right subtree (outer pair), (3) the left's right subtree must mirror the right's left subtree (inner pair). Base cases: both null \u2192 symmetric; one null \u2192 not symmetric.",
+        "tradeoffs": "You can also solve this iteratively with a queue: enqueue pairs of nodes that should be mirrors, then process pairs. This avoids recursion depth issues. Both are O(n) time, O(h) space.",
+        "keyTakeaway": "Symmetric tree: compare mirror pairs \u2014 left.left with right.right (outer), and left.right with right.left (inner). Values must match and the pairing must hold recursively.",
+        "commonMistake": "Comparing left.left with right.left and left.right with right.right. That checks if the subtrees are IDENTICAL, not mirror images. Mirror means you flip left/right: outer with outer, inner with inner."
+      }
+    },
+    {
+      "id": "bt-s16",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "recursion-patterns"
+      ],
+      "prompt": {
+        "context": "You need to invert (mirror) a binary tree \u2014 swap every left and right child throughout the tree.",
+        "question": "What is the simple recursive pattern for inverting a binary tree?"
+      },
+      "options": [
+        {
+          "id": "bt-s16-o1",
+          "label": "At each node, swap its left and right children, then recursively invert both subtrees. Base case: null node returns null.",
+          "description": "Swap children first (or after \u2014 order doesn't matter as long as you recurse on both), then recurse on the new left and right"
+        },
+        {
+          "id": "bt-s16-o2",
+          "label": "Do an inorder traversal, reverse the array, then rebuild the tree",
+          "description": "Collect values in order, reverse, and construct a new tree"
+        },
+        {
+          "id": "bt-s16-o3",
+          "label": "Only swap leaf nodes \u2014 interior nodes don't need swapping",
+          "description": "Swapping only happens at the bottom level of the tree"
+        }
+      ],
+      "correctOptionId": "bt-s16-o1",
+      "explanation": {
+        "reasoning": "Invert binary tree: for each node, swap left and right children. Then recursively invert the (now-swapped) left subtree and right subtree. It doesn't matter whether you swap before or after recursing \u2014 both work. The base case is null (do nothing, return null). Time: O(n), Space: O(h). This is perhaps the most famous interview question due to the Homebrew creator's tweet about failing it at Google.",
+        "tradeoffs": "This can also be done iteratively with BFS or DFS: traverse the tree and swap children at each node. The recursive version is the most concise. This is a great warm-up problem that tests basic tree recursion understanding.",
+        "keyTakeaway": "Invert tree: swap left/right children at every node, recurse. One of the simplest tree recursion problems \u2014 if you can't do this, you need to review tree basics.",
+        "commonMistake": "Overthinking it. The solution is literally 3 lines: swap node.left and node.right, recurse on both. No special handling needed for leaves, single-child nodes, or the root."
+      }
+    },
+    {
+      "id": "bt-s17",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "tree-construction"
+      ],
+      "prompt": {
+        "context": "You're given preorder and inorder traversals of a binary tree and need to reconstruct it.\n\nPreorder: [3, 9, 20, 15, 7]\nInorder: [9, 3, 15, 20, 7]",
+        "question": "What does preorder[0] tell you, and how do you find the left and right subtrees?"
+      },
+      "options": [
+        {
+          "id": "bt-s17-o1",
+          "label": "preorder[0] is the root. Find it in inorder \u2014 everything left of it is the left subtree, everything right is the right subtree. Use the counts to slice preorder too.",
+          "description": "Root = 3. In inorder, [9] is left of 3 (left subtree), [15,20,7] is right (right subtree). Left subtree has 1 node, so preorder[1:2] is left's preorder."
+        },
+        {
+          "id": "bt-s17-o2",
+          "label": "preorder[0] is always the leftmost leaf, which anchors the reconstruction",
+          "description": "The first element of preorder is the smallest value"
+        },
+        {
+          "id": "bt-s17-o3",
+          "label": "You need all three traversals (preorder, inorder, postorder) to uniquely reconstruct a tree",
+          "description": "Two traversals are insufficient for unique reconstruction"
+        }
+      ],
+      "correctOptionId": "bt-s17-o1",
+      "explanation": {
+        "reasoning": "Preorder visits root first, so preorder[0] = root. Find this root in inorder \u2014 its index splits inorder into left subtree elements (before it) and right subtree elements (after it). Count the left subtree size (say k). In preorder, elements [1..k] are the left subtree's preorder, and [k+1..end] are the right's. Recurse on each. Use a hashmap for O(1) inorder index lookup.",
+        "tradeoffs": "Time: O(n) with hashmap for inorder lookup, O(n^2) without. Space: O(n) for the hashmap + O(h) for recursion. You can also reconstruct from inorder + postorder (postorder[-1] is root). Preorder + postorder alone cannot uniquely reconstruct if there are nodes with only one child.",
+        "keyTakeaway": "Construct tree from preorder + inorder: preorder[0] = root. Find root in inorder to split into left/right subtrees. Use subtree sizes to split preorder. Recurse.",
+        "commonMistake": "Linearly searching for the root in inorder each time \u2014 gives O(n^2). Use a hashmap (value \u2192 index) built once for O(1) lookups, reducing total time to O(n)."
+      }
+    },
+    {
+      "id": "bt-s18",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "tree-construction"
+      ],
+      "prompt": {
+        "context": "You need to serialize a binary tree to a string and deserialize it back perfectly. You choose preorder with null markers.\n\nTree: [1, 2, 3, null, null, 4, 5]\nSerialized: \"1,2,#,#,3,4,#,#,5,#,#\"",
+        "question": "During deserialization, how do you reconstruct the tree from this string?"
+      },
+      "options": [
+        {
+          "id": "bt-s18-o1",
+          "label": "Read values one by one. Each value becomes a node; '#' means null (return null). Recursively build: read value \u2192 create node \u2192 build left subtree \u2192 build right subtree.",
+          "description": "Use a pointer/iterator that advances through the string. The preorder structure means you naturally build left subtrees completely before starting right subtrees."
+        },
+        {
+          "id": "bt-s18-o2",
+          "label": "Split the string by commas, build a complete binary tree, then prune null nodes",
+          "description": "Create all nodes first in a complete tree structure, then remove the null placeholders"
+        },
+        {
+          "id": "bt-s18-o3",
+          "label": "Parse the string into an array, then use the standard array-to-BST conversion (parent at i, children at 2i+1 and 2i+2)",
+          "description": "Use array indices to determine parent-child relationships"
+        }
+      ],
+      "correctOptionId": "bt-s18-o1",
+      "explanation": {
+        "reasoning": "Deserialization mirrors the serialization process. Use a global index or iterator. Read the next value: if '#', return null. Otherwise, create a node with that value, then recursively build its left subtree (which advances the index through all left-subtree values), then its right subtree. The preorder structure ensures this works perfectly \u2014 each recursive call consumes exactly the right portion of the string.",
+        "tradeoffs": "BFS-based serialization (like LeetCode format) is another option. It uses level-order and is more human-readable. Preorder with null markers is simpler to implement with recursion. Both are O(n) time and space.",
+        "keyTakeaway": "Deserialize preorder: read next token, if null marker return null, else create node \u2192 recurse left \u2192 recurse right. The shared index/iterator naturally advances through the serialized string.",
+        "commonMistake": "Not using a shared mutable index (or iterator). If you pass the index by value in each recursive call, it won't advance correctly between the left and right subtree calls. Use a class variable, list wrapper, or iterator."
+      }
+    },
+    {
+      "id": "bt-s19",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "level-operations"
+      ],
+      "prompt": {
+        "context": "You need to perform level-order traversal of a binary tree \u2014 returning values grouped by level.\n\nExample: [[3], [9, 20], [15, 7]]",
+        "question": "How do you track level boundaries during BFS?"
+      },
+      "options": [
+        {
+          "id": "bt-s19-o1",
+          "label": "Before processing each level, record the current queue size. Process exactly that many nodes \u2014 they are all at the same level. New nodes added go to the next level.",
+          "description": "level_size = len(queue) at the start of each level. Loop level_size times, adding children. After the inner loop, the queue contains only next-level nodes."
+        },
+        {
+          "id": "bt-s19-o2",
+          "label": "Use two queues: one for the current level and one for the next level. Swap them after each level.",
+          "description": "Alternate between queues to separate levels"
+        },
+        {
+          "id": "bt-s19-o3",
+          "label": "Track the depth of each node by storing (node, depth) pairs in the queue",
+          "description": "Each queue entry includes the level number"
+        }
+      ],
+      "correctOptionId": "bt-s19-o1",
+      "explanation": {
+        "reasoning": "The standard pattern: at the start of each level, get level_size = len(queue). Then loop exactly level_size times: dequeue a node, process it, enqueue its children. After this inner loop, the queue contains exactly the nodes of the next level. This naturally groups nodes by level without extra data structures.",
+        "tradeoffs": "All three options work. The queue-size approach (option 1) is the most common and cleanest. The two-queue approach is equivalent but uses more code. The (node, depth) approach works but wastes space storing depth with every node. Option 1 is what interviewers expect.",
+        "keyTakeaway": "Level-order with grouping: snapshot the queue size before each level, process exactly that many nodes. This is the bread-and-butter BFS tree pattern.",
+        "commonMistake": "Processing nodes one-at-a-time without tracking level boundaries. This gives you a flat list of values, not grouped by level. Always snapshot the queue size at the start of each level."
+      }
+    },
+    {
+      "id": "bt-s20",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "level-operations"
+      ],
+      "prompt": {
+        "context": "Zigzag Level Order Traversal (LC 103): traverse the tree level by level, but alternate direction \u2014 left-to-right, then right-to-left, then left-to-right, etc.",
+        "question": "What is the simplest modification to standard level-order traversal?"
+      },
+      "options": [
+        {
+          "id": "bt-s20-o1",
+          "label": "Do standard left-to-right BFS. On even levels (0-indexed), keep the level list as-is. On odd levels, reverse the level list before adding to results.",
+          "description": "Track a boolean or level counter. Reverse every other level's collected values. The BFS itself doesn't change \u2014 only the output ordering."
+        },
+        {
+          "id": "bt-s20-o2",
+          "label": "Alternate the order in which you enqueue left and right children each level",
+          "description": "On odd levels, enqueue right child before left child to reverse the order"
+        },
+        {
+          "id": "bt-s20-o3",
+          "label": "Use a stack instead of a queue for odd levels to reverse the processing order",
+          "description": "Swap between queue and stack to alternate directions"
+        }
+      ],
+      "correctOptionId": "bt-s20-o1",
+      "explanation": {
+        "reasoning": "The simplest approach: perform completely standard level-order BFS. Collect each level's values in a list. For even-numbered levels (0, 2, 4...), add the list as-is. For odd-numbered levels (1, 3, 5...), reverse the list before adding it to results. This keeps the BFS logic clean and only modifies the output. Toggle a left_to_right boolean after each level.",
+        "tradeoffs": "Using a deque and alternating append direction also works and avoids the reverse operation, but adds complexity to the BFS loop. The reverse approach is cleaner and the O(n) reverse per level doesn't change the overall O(n) time complexity.",
+        "keyTakeaway": "Zigzag traversal: do normal BFS, reverse every other level's output. Don't complicate the BFS itself \u2014 just post-process the collected values.",
+        "commonMistake": "Trying to change the enqueue order to achieve zigzag directly. This gets confusing fast and is error-prone. It's much simpler to BFS normally and reverse alternate levels."
+      }
+    },
+    {
+      "id": "bt-s21",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "level-operations"
+      ],
+      "prompt": {
+        "context": "Binary Tree Right Side View (LC 199): return the values of nodes visible from the right side of the tree (one value per level \u2014 the rightmost node).",
+        "question": "How do you pick the right node from each level?"
+      },
+      "options": [
+        {
+          "id": "bt-s21-o1",
+          "label": "Do standard level-order BFS. For each level, the LAST node processed in that level is the rightmost \u2014 add it to the result.",
+          "description": "Process the level left to right, and take the last value. Or equivalently, after processing all level_size nodes, the last one is the answer."
+        },
+        {
+          "id": "bt-s21-o2",
+          "label": "Only traverse right children \u2014 the right side view only contains nodes on the rightmost path",
+          "description": "Follow root.right at each level to get the right side view"
+        },
+        {
+          "id": "bt-s21-o3",
+          "label": "Do a reverse level-order (right to left) and take the first node at each level",
+          "description": "Start from the right side by reversing the BFS order"
+        }
+      ],
+      "correctOptionId": "bt-s21-o1",
+      "explanation": {
+        "reasoning": "Standard level-order BFS with the level-size technique. For each level, process all nodes left to right. The last node in each level is the rightmost visible node. Add it to the result. Alternatively, you can use DFS with a modified preorder: visit right subtree before left, and for each depth, only add the first node encountered (which is the rightmost).",
+        "tradeoffs": "DFS approach: traverse right-first, track the maximum depth seen. When you reach a new depth for the first time, that node is the right-side-view node. This uses O(h) space vs BFS's O(w) space. For balanced trees, BFS uses more space; for skewed trees, DFS uses more.",
+        "keyTakeaway": "Right side view: BFS level by level, take the last node per level. Or DFS right-first, take the first node at each new depth.",
+        "commonMistake": "Only following right children (option 2). The right-side view might include left children! If a node's right child is null but left child exists, the left child is visible from the right side at that level."
+      }
+    },
+    {
+      "id": "bt-s22",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bst-properties",
+        "traversal"
+      ],
+      "prompt": {
+        "context": "An alternative way to validate a BST: do an inorder traversal and check that the sequence is strictly increasing.",
+        "question": "What do you track during the inorder traversal to validate the BST?"
+      },
+      "options": [
+        {
+          "id": "bt-s22-o1",
+          "label": "Track the previously visited value. At each node, check that current value > previous value. If ever current <= previous, it's not a valid BST.",
+          "description": "Initialize prev to negative infinity. Inorder traversal naturally visits in ascending order for a valid BST; any violation means invalid."
+        },
+        {
+          "id": "bt-s22-o2",
+          "label": "Track the sum of all visited values and check it matches the expected sum",
+          "description": "Valid BSTs have predictable value sums based on their structure"
+        },
+        {
+          "id": "bt-s22-o3",
+          "label": "Track the depth and check that deeper nodes always have smaller values",
+          "description": "BST nodes decrease in value as depth increases"
+        }
+      ],
+      "correctOptionId": "bt-s22-o1",
+      "explanation": {
+        "reasoning": "Inorder traversal of a valid BST produces strictly increasing values. Track a 'prev' variable (initialized to -infinity). During inorder traversal, at each node: if node.val <= prev, it's invalid. Otherwise, update prev = node.val and continue. If you complete the traversal without violations, it's a valid BST. This is often simpler than the min/max bounds approach.",
+        "tradeoffs": "This approach does a full inorder traversal in O(n) time. The min/max bounds approach can short-circuit earlier (stop as soon as a violation is found without visiting the rest). In practice, both are O(n) worst case. The inorder approach is easier to implement correctly.",
+        "keyTakeaway": "Validate BST via inorder: track previous value, ensure strictly increasing sequence. This leverages the fundamental property that inorder(BST) = sorted.",
+        "commonMistake": "Using >= instead of > (or forgetting that BSTs typically require strictly increasing \u2014 no duplicates in the standard definition). Check the problem's definition of BST for how duplicates are handled."
+      }
+    },
+    {
+      "id": "bt-s23",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "traversal"
+      ],
+      "prompt": {
+        "context": "Morris Traversal achieves inorder traversal of a binary tree in O(1) space (no stack, no recursion). It temporarily modifies the tree structure.",
+        "question": "What is the key idea behind Morris Traversal?"
+      },
+      "options": [
+        {
+          "id": "bt-s23-o1",
+          "label": "For each node, find its inorder predecessor (rightmost node in left subtree) and temporarily link predecessor.right to the current node. This creates a thread back to the parent, replacing the stack.",
+          "description": "The threaded links let you return to ancestors without a stack. After processing, you remove the threads to restore the tree."
+        },
+        {
+          "id": "bt-s23-o2",
+          "label": "Reverse all left child pointers so you can traverse the tree right-to-left using only right pointers",
+          "description": "Convert the tree to a right-threaded structure first"
+        },
+        {
+          "id": "bt-s23-o3",
+          "label": "Store the traversal path in the node values themselves, using negative numbers as markers",
+          "description": "Encode traversal state in the node values"
+        }
+      ],
+      "correctOptionId": "bt-s23-o1",
+      "explanation": {
+        "reasoning": "Morris Traversal: at each node, if it has a left subtree, find the inorder predecessor (rightmost node of left subtree). If predecessor.right is null, set predecessor.right = current (create thread), move to current.left. If predecessor.right already points to current (thread exists), remove the thread, process current node, move to current.right. If no left subtree, process current node, move to current.right. The threads act as 'return addresses' replacing the recursion stack.",
+        "tradeoffs": "Morris is O(n) time (each edge is traversed at most 3 times) and O(1) space. The trade-off is it temporarily modifies the tree \u2014 not safe for concurrent access. It's also harder to understand and implement. In interviews, mention it as an optimization but implement the stack-based version unless specifically asked for O(1) space.",
+        "keyTakeaway": "Morris Traversal: thread the tree by linking inorder predecessors back to their successors. This replaces the stack with temporary tree modifications. O(n) time, O(1) space.",
+        "commonMistake": "Forgetting to remove the threads after processing. If you don't restore predecessor.right to null, the tree structure is permanently corrupted."
+      }
+    }
+  ]
+}

@@ -1,0 +1,913 @@
+{
+  "id": "interview-graph",
+  "title": "Graph \u2014 Interview Patterns",
+  "description": "Graph algorithm patterns for interviews. Covers BFS/DFS, topological sort, shortest path, union-find, and grid-based problems.",
+  "domain": "Data Structures & Algorithms",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "bfs-dfs",
+      "name": "BFS & DFS",
+      "description": "When to use BFS vs DFS, implementation patterns, visited tracking"
+    },
+    {
+      "id": "topological-sort",
+      "name": "Topological Sort",
+      "description": "Kahn's (BFS) and DFS approaches, cycle detection in DAGs"
+    },
+    {
+      "id": "shortest-path",
+      "name": "Shortest Path",
+      "description": "Dijkstra, Bellman-Ford, BFS for unweighted, 0-1 BFS"
+    },
+    {
+      "id": "union-find",
+      "name": "Union-Find",
+      "description": "Disjoint set union with path compression and union by rank"
+    },
+    {
+      "id": "cycle-detection",
+      "name": "Cycle Detection",
+      "description": "Detecting cycles in directed vs undirected graphs"
+    },
+    {
+      "id": "grid-problems",
+      "name": "Grid/Matrix Problems",
+      "description": "Number of islands, flood fill, rotting oranges \u2014 graph problems in disguise"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "gr-s01",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "bfs-dfs"
+      ],
+      "prompt": {
+        "context": "You need to find the shortest path between two nodes in an unweighted graph.",
+        "question": "Which traversal guarantees finding the shortest path?"
+      },
+      "options": [
+        {
+          "id": "gr-s01-o1",
+          "label": "BFS \u2014 it explores all nodes at distance k before distance k+1, so the first time it reaches a node is via the shortest path",
+          "description": "BFS visits level by level. The first visit to any node is guaranteed to be the shortest."
+        },
+        {
+          "id": "gr-s01-o2",
+          "label": "DFS \u2014 it reaches distant nodes faster by going deep immediately",
+          "description": "DFS finds paths quickly by diving deep first"
+        },
+        {
+          "id": "gr-s01-o3",
+          "label": "Both guarantee shortest paths in unweighted graphs",
+          "description": "Traversal order doesn't matter for shortest path correctness"
+        }
+      ],
+      "correctOptionId": "gr-s01-o1",
+      "explanation": {
+        "reasoning": "BFS explores nodes in order of their distance from the source. It visits all nodes at distance 1, then distance 2, etc. The first time BFS reaches any node, it has found the shortest path. DFS may reach a node via a long detour first.",
+        "tradeoffs": "BFS uses O(V) space for the queue. DFS uses O(V) for the stack. For shortest path in unweighted graphs, BFS is correct. DFS is preferred for exhaustive exploration, cycle detection, or topological sort.",
+        "keyTakeaway": "BFS = shortest path in unweighted graphs. DFS = exhaustive exploration, backtracking, topological sort. When the problem says 'shortest' or 'minimum steps', think BFS.",
+        "commonMistake": "Using DFS to find shortest paths. DFS finds A path, not THE shortest path."
+      }
+    },
+    {
+      "id": "gr-s02",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "bfs-dfs",
+        "grid-problems"
+      ],
+      "prompt": {
+        "context": "Number of Islands (LC 200): count connected components of '1's in a grid. You visit each unvisited '1' and mark all connected land as visited.",
+        "question": "What is the key tradeoff when choosing how to track visited cells?"
+      },
+      "options": [
+        {
+          "id": "gr-s02-o1",
+          "label": "In-place modification (change '1' to '0') uses O(1) extra space but mutates input. A visited set preserves the grid but uses O(m*n) space.",
+          "description": "Modify grid = free visited tracking. Separate set = input preserved."
+        },
+        {
+          "id": "gr-s02-o2",
+          "label": "A visited set is always required \u2014 modifying the grid gives wrong answers",
+          "description": "In-place modification corrupts the island count"
+        },
+        {
+          "id": "gr-s02-o3",
+          "label": "Both use the same space since writing to the grid counts as extra space",
+          "description": "The grid modifications are equivalent to a separate data structure"
+        }
+      ],
+      "correctOptionId": "gr-s02-o1",
+      "explanation": {
+        "reasoning": "Modifying the grid in-place ('1' \u2192 '0' after visiting) acts as a visited marker with no extra space. The tradeoff: you destroy the input. A visited set preserves the grid at O(m*n) cost. Both are correct approaches.",
+        "tradeoffs": "In interviews, mention the tradeoff: 'I can modify the grid for O(1) space, or use a visited set to preserve input.' In production, mutating input is often discouraged.",
+        "keyTakeaway": "Grid visited tracking: in-place modification = O(1) space, mutates input. Visited set = O(m*n) space, preserves input. Both valid \u2014 mention the tradeoff.",
+        "commonMistake": "Forgetting to mark cells as visited BEFORE recursing/enqueuing. If you mark after, the same cell gets added multiple times, causing TLE."
+      }
+    },
+    {
+      "id": "gr-s03",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs"
+      ],
+      "prompt": {
+        "context": "Clone Graph (LC 133): deep copy a connected undirected graph. Each node has a value and list of neighbors. The graph can have cycles.",
+        "question": "Why is a hashmap (old node \u2192 new node) essential when cloning?"
+      },
+      "options": [
+        {
+          "id": "gr-s03-o1",
+          "label": "It prevents infinite loops from cycles AND ensures each node is cloned exactly once, preserving the graph structure",
+          "description": "Without it, cycles cause infinite recursion, and shared neighbors get duplicated instead of referencing the same clone."
+        },
+        {
+          "id": "gr-s03-o2",
+          "label": "The hashmap is only for performance \u2014 cloning works without it, just slower",
+          "description": "Correctness is unaffected; the map just avoids redundant work"
+        },
+        {
+          "id": "gr-s03-o3",
+          "label": "The hashmap stores the adjacency list since cloned nodes can't have pointers",
+          "description": "New nodes need an external structure to track neighbors"
+        }
+      ],
+      "correctOptionId": "gr-s03-o1",
+      "explanation": {
+        "reasoning": "The map serves two purposes: (1) Visited tracking \u2014 prevents infinite recursion on cycles. (2) Identity preservation \u2014 if nodes B and C both neighbor D, they must reference the SAME cloned D, not separate copies. The map guarantees one clone per original node.",
+        "tradeoffs": "This old\u2192new map pattern appears in many graph/deep-copy problems. Both BFS and DFS work; the map logic is identical.",
+        "keyTakeaway": "Clone graph: hashmap (old \u2192 new) prevents infinite loops on cycles and ensures each node is cloned exactly once.",
+        "commonMistake": "Cloning without a map \u2014 infinite recursion on cycles, or creating duplicate copies that break the graph structure."
+      }
+    },
+    {
+      "id": "gr-s04",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs",
+        "grid-problems"
+      ],
+      "prompt": {
+        "context": "Rotting Oranges (LC 994): a grid has fresh (1) and rotten (2) oranges. Each minute, rotten oranges rot adjacent fresh ones. Multiple rotten oranges exist at the start.",
+        "question": "Why is this a multi-source BFS problem?"
+      },
+      "options": [
+        {
+          "id": "gr-s04-o1",
+          "label": "All rotten oranges spread simultaneously \u2014 initialize the queue with ALL rotten oranges. Each BFS level = one minute.",
+          "description": "Multi-source BFS: enqueue all starting rotten oranges. Level-by-level expansion models simultaneous spreading."
+        },
+        {
+          "id": "gr-s04-o2",
+          "label": "Run separate BFS from each rotten orange and take the maximum time",
+          "description": "Each rotten orange spreads independently"
+        },
+        {
+          "id": "gr-s04-o3",
+          "label": "DFS from each rotten orange to find the farthest fresh orange",
+          "description": "DFS measures the maximum spreading distance"
+        }
+      ],
+      "correctOptionId": "gr-s04-o1",
+      "explanation": {
+        "reasoning": "All rotten oranges spread at the same time \u2014 this is multi-source BFS. Enqueue ALL rotten oranges at the start. Each BFS level represents one minute. Track the last minute any orange was rotted. Running separate BFS per source gives wrong results because it doesn't model simultaneous spreading.",
+        "tradeoffs": "Multi-source BFS is O(m*n) \u2014 same as single-source BFS. It appears in many 'simultaneous spreading' problems: fire, flood, rotting, etc.",
+        "keyTakeaway": "Simultaneous spreading from multiple sources = multi-source BFS. Initialize queue with ALL sources. Each BFS level = one time step.",
+        "commonMistake": "Running BFS from each rotten orange separately. This doesn't model simultaneous spreading and gives incorrect results."
+      }
+    },
+    {
+      "id": "gr-s05",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs",
+        "grid-problems"
+      ],
+      "prompt": {
+        "context": "01-Matrix (LC 542): find the distance of the nearest 0 for each cell. Naive: BFS from each 1-cell to find the nearest 0.",
+        "question": "Why is starting BFS from all 0-cells (targets) better?"
+      },
+      "options": [
+        {
+          "id": "gr-s05-o1",
+          "label": "Multi-source BFS from all 0s runs once in O(m*n). BFS from each 1-cell is O(m*n) per cell \u2192 O(m^2 * n^2) total.",
+          "description": "Reverse the direction: spread from targets outward. Each cell gets its distance the first time BFS reaches it."
+        },
+        {
+          "id": "gr-s05-o2",
+          "label": "Both approaches have the same complexity \u2014 the reverse direction is just cleaner code",
+          "description": "Total work is identical regardless of direction"
+        },
+        {
+          "id": "gr-s05-o3",
+          "label": "BFS from 1-cells can't find the nearest 0 correctly",
+          "description": "Starting from 1-cells causes BFS to miss closer 0-cells"
+        }
+      ],
+      "correctOptionId": "gr-s05-o1",
+      "explanation": {
+        "reasoning": "Multi-source BFS from all 0-cells: enqueue all 0s, spread outward. Each cell's distance is set the first time BFS reaches it (guaranteed shortest distance to some 0). Total: O(m*n). The naive approach does O(m*n) BFS per cell, with up to O(m*n) cells \u2192 O(m^2*n^2).",
+        "tradeoffs": "This 'reverse the direction' insight applies to many problems: Walls and Gates, Shortest Bridge, etc. Instead of 'how far is each source from the nearest target?', flip to 'spread from all targets simultaneously.'",
+        "keyTakeaway": "When computing distance to nearest target for every cell: multi-source BFS from all targets. One pass at O(m*n) beats per-cell BFS.",
+        "commonMistake": "Running BFS from each 1-cell separately \u2014 O(m^2*n^2). Reverse the direction: start from 0-cells."
+      }
+    },
+    {
+      "id": "gr-s06",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs",
+        "grid-problems"
+      ],
+      "prompt": {
+        "context": "Pacific Atlantic Water Flow (LC 417): water flows from higher to equal/lower cells. Pacific touches left+top edges, Atlantic touches right+bottom. Find all cells that can reach both oceans.",
+        "question": "Why start BFS/DFS from ocean borders inward instead of from each cell outward?"
+      },
+      "options": [
+        {
+          "id": "gr-s06-o1",
+          "label": "Two passes from borders: mark cells reachable from Pacific, mark cells reachable from Atlantic. Intersection = answer. O(m*n) total vs O(m^2*n^2) from each cell.",
+          "description": "Reverse the flow: go uphill from ocean borders. Two O(m*n) passes beat one O(m*n) pass per cell."
+        },
+        {
+          "id": "gr-s06-o2",
+          "label": "Starting from borders is required because flow direction is ambiguous from interior",
+          "description": "You can only determine flow direction from the ocean boundary"
+        },
+        {
+          "id": "gr-s06-o3",
+          "label": "Both approaches are O(m*n)",
+          "description": "Starting from cells is no more expensive than starting from borders"
+        }
+      ],
+      "correctOptionId": "gr-s06-o1",
+      "explanation": {
+        "reasoning": "From each cell outward: O(m*n) per cell \u2192 O(m^2*n^2). Reverse: BFS/DFS from Pacific borders going uphill (to cells \u2265 current), marking reachable cells. Same from Atlantic borders. Cells in both sets = answer. Two O(m*n) passes = O(m*n) total.",
+        "tradeoffs": "The reverse-flow trick: instead of 'can water flow FROM this cell TO the ocean?', ask 'can water flow FROM the ocean TO this cell (going uphill)?' Same answer, O(m*n) vs O(m^2*n^2).",
+        "keyTakeaway": "For reachability to boundaries: reverse the search \u2014 BFS/DFS from boundaries inward. Two passes at O(m*n) beats per-cell BFS.",
+        "commonMistake": "Running DFS from every cell to check ocean reachability \u2014 O(m^2*n^2). Reverse the direction."
+      }
+    },
+    {
+      "id": "gr-s07",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs",
+        "grid-problems"
+      ],
+      "prompt": {
+        "context": "Surrounded Regions (LC 130): flip all 'O' regions surrounded by 'X'. 'O's on the border or connected to border 'O's are NOT captured.",
+        "question": "How do you efficiently find which 'O' regions should NOT be captured?"
+      },
+      "options": [
+        {
+          "id": "gr-s07-o1",
+          "label": "DFS/BFS from every border 'O', marking connected 'O's as safe. Then flip all remaining unmarked 'O's to 'X'.",
+          "description": "Mark border-connected 'O's as safe first, then capture everything else. Work from the boundary inward."
+        },
+        {
+          "id": "gr-s07-o2",
+          "label": "For each interior 'O', BFS outward to check if it reaches the border",
+          "description": "Test each 'O' individually for border connectivity"
+        },
+        {
+          "id": "gr-s07-o3",
+          "label": "Flood fill each connected component and check if any cell is on the border",
+          "description": "Process each component and check border adjacency"
+        }
+      ],
+      "correctOptionId": "gr-s07-o1",
+      "explanation": {
+        "reasoning": "Start from border 'O's, DFS/BFS to mark all connected 'O's as safe (e.g., temporarily change to 'S'). Then scan the board: remaining 'O's \u2192 'X' (captured), 'S' \u2192 'O' (restored). O(m*n) total.",
+        "tradeoffs": "This is the same 'start from boundary' pattern as Pacific Atlantic. Identify what's safe from the border, then capture everything else. Cleaner than checking each interior cell.",
+        "keyTakeaway": "Surrounded regions: mark border-connected cells as safe, then capture everything else. Work from boundary inward.",
+        "commonMistake": "Trying to identify surrounded regions directly. It's easier to identify what's NOT surrounded (border-connected) and capture the rest."
+      }
+    },
+    {
+      "id": "gr-s08",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "bfs-dfs"
+      ],
+      "prompt": {
+        "context": "Word Ladder (LC 127): find the shortest transformation from beginWord to endWord, changing one letter at a time. Each intermediate word must be in the dictionary.",
+        "question": "Why is BFS correct here and how do you find neighbors efficiently?"
+      },
+      "options": [
+        {
+          "id": "gr-s08-o1",
+          "label": "BFS guarantees shortest transformation sequence. For neighbors: for each position, try all 26 letters \u2014 check if the resulting word is in the dictionary (HashSet). This is O(26 * m) per word.",
+          "description": "Each word has at most 26*m potential neighbors. HashSet lookup is O(m). BFS finds the shortest path."
+        },
+        {
+          "id": "gr-s08-o2",
+          "label": "DFS with memoization finds the shortest path more efficiently by caching subproblems",
+          "description": "DFS + memo avoids redundant exploration and finds optimal paths"
+        },
+        {
+          "id": "gr-s08-o3",
+          "label": "Compare every pair of dictionary words to build the graph first, then BFS",
+          "description": "Precompute the adjacency list by checking all word pairs"
+        }
+      ],
+      "correctOptionId": "gr-s08-o1",
+      "explanation": {
+        "reasoning": "BFS finds shortest paths in unweighted graphs. The graph: words are nodes, edges connect words differing by one letter. For neighbor generation: for each of m positions, try all 26 letters, check if the word exists in a HashSet of dictionary words. This is O(26m) per word. BFS explores words level by level (distance 1, 2, 3...) and returns the first time it reaches endWord.",
+        "tradeoffs": "Building the full graph first (option 3) is O(n^2 * m) for n words \u2014 slower for large dictionaries. The on-the-fly neighbor generation is better. Bidirectional BFS (from both ends) can speed things up significantly.",
+        "keyTakeaway": "Word Ladder: BFS for shortest path. Generate neighbors by trying all single-character changes and checking against a HashSet. O(26 * m * n) overall.",
+        "commonMistake": "Using DFS \u2014 it finds a path but not the shortest. Also: not removing visited words from the dictionary set, causing BFS to revisit and TLE."
+      }
+    },
+    {
+      "id": "gr-s09",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "topological-sort"
+      ],
+      "prompt": {
+        "context": "You need to find a valid ordering of tasks where some tasks depend on others (must be completed first).",
+        "question": "What graph property is required for topological sort to exist?"
+      },
+      "options": [
+        {
+          "id": "gr-s09-o1",
+          "label": "The graph must be a DAG (Directed Acyclic Graph) \u2014 a directed graph with no cycles",
+          "description": "If there's a cycle (A depends on B depends on A), no valid ordering exists."
+        },
+        {
+          "id": "gr-s09-o2",
+          "label": "The graph must be a tree (connected, no cycles, undirected)",
+          "description": "Tree structure guarantees a valid topological ordering"
+        },
+        {
+          "id": "gr-s09-o3",
+          "label": "The graph can have cycles as long as it's strongly connected",
+          "description": "Strong connectivity allows cycle resolution during topological sort"
+        }
+      ],
+      "correctOptionId": "gr-s09-o1",
+      "explanation": {
+        "reasoning": "Topological sort produces a linear ordering where for every directed edge u\u2192v, u comes before v. This is only possible if there are no cycles. A cycle A\u2192B\u2192C\u2192A means A must come before B, B before C, C before A \u2014 impossible. Hence: DAG required.",
+        "tradeoffs": "If cycles exist, topological sort is impossible. This is actually useful: attempting topological sort and failing is a way to detect cycles in directed graphs (Course Schedule problem).",
+        "keyTakeaway": "Topological sort requires a DAG. No cycles allowed. If the graph has cycles, no valid ordering exists.",
+        "commonMistake": "Trying to topologically sort a graph with cycles. Always check for cycles first, or detect them during the sort (Kahn's algorithm: if result has fewer nodes than the graph, there's a cycle)."
+      }
+    },
+    {
+      "id": "gr-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "topological-sort",
+        "cycle-detection"
+      ],
+      "prompt": {
+        "context": "Course Schedule (LC 207): there are n courses with prerequisites. Determine if it's possible to finish all courses. Prerequisites form a directed graph (prerequisite \u2192 course).",
+        "question": "What is this problem really asking?"
+      },
+      "options": [
+        {
+          "id": "gr-s10-o1",
+          "label": "Cycle detection in a directed graph \u2014 if there's a cycle in the prerequisite graph, it's impossible to finish all courses",
+          "description": "A cycle means course A requires B, B requires C, C requires A \u2014 none can be taken first."
+        },
+        {
+          "id": "gr-s10-o2",
+          "label": "Finding the shortest path through all courses",
+          "description": "We need the minimum number of semesters to complete all courses"
+        },
+        {
+          "id": "gr-s10-o3",
+          "label": "Finding the maximum number of courses that can be taken",
+          "description": "We need to maximize how many courses are completable"
+        }
+      ],
+      "correctOptionId": "gr-s10-o1",
+      "explanation": {
+        "reasoning": "The question 'can you finish all courses?' is equivalent to 'does the prerequisite graph have a cycle?' If there's a cycle, the courses in the cycle can never be completed (circular dependency). If there's no cycle (it's a DAG), topological sort gives a valid completion order. So this is fundamentally a cycle detection problem on a directed graph.",
+        "tradeoffs": "You can solve this with either Kahn's algorithm (BFS topological sort \u2014 if result size < n, there's a cycle) or DFS with 3-state coloring (unvisited, in-stack, done). Both are O(V + E).",
+        "keyTakeaway": "Course Schedule = cycle detection in a directed graph. If no cycle exists, all courses can be finished.",
+        "commonMistake": "Over-complicating the problem. It's not about scheduling or optimization \u2014 it's a simple yes/no cycle detection question."
+      }
+    },
+    {
+      "id": "gr-s11",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "topological-sort"
+      ],
+      "prompt": {
+        "context": "Course Schedule II (LC 210): return a valid order to take all courses. You choose Kahn's algorithm (BFS-based topological sort).",
+        "question": "What do you start with in Kahn's algorithm?"
+      },
+      "options": [
+        {
+          "id": "gr-s11-o1",
+          "label": "All nodes with in-degree 0 \u2014 courses with no prerequisites. Process them first, then reduce in-degrees of their neighbors, enqueuing newly zero-in-degree nodes.",
+          "description": "In-degree 0 means no dependencies. Process them, decrement neighbors' in-degrees. When a neighbor hits 0, it's ready to be processed."
+        },
+        {
+          "id": "gr-s11-o2",
+          "label": "The node with the highest out-degree \u2014 it's depended on by the most courses",
+          "description": "Processing high-out-degree nodes first resolves the most dependencies"
+        },
+        {
+          "id": "gr-s11-o3",
+          "label": "Any random node \u2014 Kahn's algorithm works regardless of starting point",
+          "description": "The BFS queue can start with any node"
+        }
+      ],
+      "correctOptionId": "gr-s11-o1",
+      "explanation": {
+        "reasoning": "Kahn's algorithm: (1) Compute in-degree for each node. (2) Enqueue all nodes with in-degree 0. (3) While queue is non-empty: dequeue node, add to result, for each neighbor decrement in-degree. If neighbor's in-degree becomes 0, enqueue it. (4) If result size < n, there's a cycle. Starting with in-degree 0 nodes is correct because they have no dependencies \u2014 they can be processed immediately.",
+        "tradeoffs": "Kahn's is BFS-based and iterative \u2014 no recursion. The DFS approach does topo sort by adding nodes to result in post-order (then reversing). Both are O(V + E). Kahn's also naturally detects cycles (result size < n).",
+        "keyTakeaway": "Kahn's: start with in-degree 0 nodes. Process them, decrement neighbors' in-degrees, enqueue new zeros. Result = topological order. If result < n nodes, cycle exists.",
+        "commonMistake": "Starting with a random node instead of in-degree 0 nodes. Kahn's specifically requires starting with dependency-free nodes."
+      }
+    },
+    {
+      "id": "gr-s12",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "topological-sort"
+      ],
+      "prompt": {
+        "context": "You're implementing DFS-based topological sort as an alternative to Kahn's algorithm.",
+        "question": "When do you add a node to the topological order in DFS-based topo sort?"
+      },
+      "options": [
+        {
+          "id": "gr-s12-o1",
+          "label": "Add the node AFTER all its descendants are processed (post-order). Then reverse the result at the end.",
+          "description": "Post-order ensures all dependencies are added before the node. Reversing gives the correct topological order."
+        },
+        {
+          "id": "gr-s12-o2",
+          "label": "Add the node as soon as you visit it (pre-order), no reversal needed",
+          "description": "Pre-order naturally produces topological order for DAGs"
+        },
+        {
+          "id": "gr-s12-o3",
+          "label": "Add the node when its in-degree reaches 0 during the DFS",
+          "description": "In-degree tracking during DFS identifies when a node is ready"
+        }
+      ],
+      "correctOptionId": "gr-s12-o1",
+      "explanation": {
+        "reasoning": "In DFS topo sort, you add a node to the result list AFTER recursively visiting all its neighbors (post-order). This ensures that all of a node's dependencies are added to the result before the node itself. Since post-order adds dependencies after the node depends on them, you need to reverse the final list (or prepend to the front). The result is a valid topological ordering.",
+        "tradeoffs": "Kahn's (BFS) produces the order directly without reversal and naturally detects cycles (result size check). DFS topo sort requires cycle detection separately (3-state coloring) and needs a reversal step. Both are O(V + E).",
+        "keyTakeaway": "DFS topo sort: add node in post-order (after visiting all descendants), then reverse. This guarantees dependencies come before dependents.",
+        "commonMistake": "Adding nodes in pre-order (when first visited). Pre-order doesn't guarantee dependencies are processed first. Post-order + reverse is the correct pattern."
+      }
+    },
+    {
+      "id": "gr-s13",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "cycle-detection"
+      ],
+      "prompt": {
+        "context": "You need to detect a cycle in an UNDIRECTED graph using DFS.",
+        "question": "Why can't you simply check 'is this neighbor already visited' \u2014 what additional check is needed?"
+      },
+      "options": [
+        {
+          "id": "gr-s13-o1",
+          "label": "In undirected graphs, the parent is always 'visited' \u2014 you must track the parent and only flag a cycle when a visited neighbor is NOT the parent.",
+          "description": "Edge A-B: when exploring B, A is a visited neighbor, but it's the parent, not a cycle. A cycle is when you reach a visited non-parent neighbor."
+        },
+        {
+          "id": "gr-s13-o2",
+          "label": "Just checking 'already visited' works fine for undirected graphs",
+          "description": "The standard visited check correctly identifies cycles in both directed and undirected graphs"
+        },
+        {
+          "id": "gr-s13-o3",
+          "label": "You need to track edge visits, not node visits, in undirected graphs",
+          "description": "Cycles are detected by revisiting edges, not nodes"
+        }
+      ],
+      "correctOptionId": "gr-s13-o1",
+      "explanation": {
+        "reasoning": "In an undirected graph, edge A-B means A's neighbor list includes B and B's list includes A. When DFS visits B from A, A is in B's neighbor list and is already visited. But this isn't a cycle \u2014 it's just the edge we came from. A true cycle is when we encounter a visited neighbor that is NOT the parent we came from. So: if neighbor is visited AND neighbor != parent, there's a cycle.",
+        "tradeoffs": "For directed graphs, you don't have this problem \u2014 edges are one-directional. Directed cycle detection uses 3 states (unvisited, in-stack, done). Undirected just needs parent tracking. Union-Find is another approach for undirected cycle detection.",
+        "keyTakeaway": "Undirected cycle detection: visited neighbor that is NOT the parent = cycle. Must track parent to avoid false positives from back-edges to the immediate parent.",
+        "commonMistake": "Not tracking the parent. Every DFS in an undirected graph will immediately 'find a cycle' (the parent is always a visited neighbor) without parent tracking."
+      }
+    },
+    {
+      "id": "gr-s14",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "cycle-detection"
+      ],
+      "prompt": {
+        "context": "You need to detect a cycle in a DIRECTED graph. The undirected approach (parent tracking) doesn't work here.",
+        "question": "What three states do you need for DFS-based cycle detection in directed graphs?"
+      },
+      "options": [
+        {
+          "id": "gr-s14-o1",
+          "label": "UNVISITED, IN_STACK (currently being explored), DONE (fully processed). A cycle exists if you encounter an IN_STACK node.",
+          "description": "IN_STACK means the node is an ancestor in the current DFS path. Reaching it means we've found a back-edge = cycle."
+        },
+        {
+          "id": "gr-s14-o2",
+          "label": "UNVISITED and VISITED (two states) are sufficient for directed graphs",
+          "description": "Two-state tracking works for both directed and undirected graphs"
+        },
+        {
+          "id": "gr-s14-o3",
+          "label": "UNVISITED, PROCESSING, and COMPLETE \u2014 but PROCESSING is the same as just 'visited'",
+          "description": "The middle state provides no additional information over standard visited"
+        }
+      ],
+      "correctOptionId": "gr-s14-o1",
+      "explanation": {
+        "reasoning": "With 2 states: consider A\u2192B\u2192C and A\u2192D\u2192C. DFS from A visits C via B first (marks C as visited). Later, DFS from A visits D, sees C is already visited. With 2 states, this looks like a cycle \u2014 but it's not (C is just reachable from two paths). With 3 states: after fully processing C's subtree, mark it DONE. When we encounter C from D, it's DONE, not IN_STACK \u2014 no cycle. A cycle only exists when we encounter a node still IN_STACK (an ancestor in the current path).",
+        "tradeoffs": "The 3-state approach is often called 'white-gray-black' coloring (Cormen/CLRS). White = unvisited, Gray = in-stack, Black = done. This is O(V + E). Kahn's algorithm also detects directed cycles: if topological sort result has fewer than V nodes, there's a cycle.",
+        "keyTakeaway": "Directed cycle detection: 3 states (unvisited, in-stack, done). Cycle = finding an in-stack neighbor. Two states give false positives on diamond-shaped graphs.",
+        "commonMistake": "Using only 2 states (visited/unvisited) for directed graphs. This falsely detects cycles in DAGs where nodes are reachable from multiple paths."
+      }
+    },
+    {
+      "id": "gr-s15",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "topological-sort"
+      ],
+      "prompt": {
+        "context": "Alien Dictionary (LC 269): given a sorted list of words in an alien language, derive the character ordering. Words: ['wrt', 'wrf', 'er', 'ett', 'rftt']",
+        "question": "Why is this a topological sort problem?"
+      },
+      "options": [
+        {
+          "id": "gr-s15-o1",
+          "label": "Compare adjacent words to extract character ordering rules (edges in a directed graph). Topological sort of this graph gives the alphabet order.",
+          "description": "'wrt' before 'wrf' means t comes before f. 'wrf' before 'er' means w comes before e. Each adjacent pair gives one ordering rule = one directed edge."
+        },
+        {
+          "id": "gr-s15-o2",
+          "label": "The character frequencies in the words determine the alphabetical order",
+          "description": "More frequent characters come first in the alien alphabet"
+        },
+        {
+          "id": "gr-s15-o3",
+          "label": "Sort the unique characters and the result is the alien alphabet",
+          "description": "The character order is determined by their Unicode values in the alien language"
+        }
+      ],
+      "correctOptionId": "gr-s15-o1",
+      "explanation": {
+        "reasoning": "Compare consecutive words to find the first differing character \u2014 this gives an ordering rule. 'wrt' vs 'wrf': first difference is t vs f, so t < f (t before f). 'wrf' vs 'er': first difference is w vs e, so w < e. Build a directed graph of these rules, then topological sort gives the alphabet order. If topo sort detects a cycle, the input is contradictory (return empty).",
+        "tradeoffs": "Edge case: if a longer word comes before its prefix (e.g., 'abc' before 'ab'), the input is invalid. Also, characters that appear but have no ordering constraints can go anywhere \u2014 topo sort handles this naturally (multiple valid orderings).",
+        "keyTakeaway": "Alien Dictionary: compare adjacent words \u2192 extract ordering edges \u2192 topological sort the character graph. If cycle detected, input is invalid.",
+        "commonMistake": "Comparing all pairs of words instead of just adjacent pairs. The sorted list guarantees that adjacent pairs contain all the ordering information needed."
+      }
+    },
+    {
+      "id": "gr-s16",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "topological-sort"
+      ],
+      "prompt": {
+        "context": "You've implemented Kahn's algorithm and it produced a result with only 6 nodes, but the graph has 8 nodes.",
+        "question": "What does this mean?"
+      },
+      "options": [
+        {
+          "id": "gr-s16-o1",
+          "label": "The graph has a cycle involving the 2 missing nodes \u2014 Kahn's couldn't process them because their in-degree never reached 0",
+          "description": "Nodes in a cycle have perpetual dependencies on each other \u2014 no node in the cycle ever reaches in-degree 0."
+        },
+        {
+          "id": "gr-s16-o2",
+          "label": "The 2 missing nodes are isolated (no edges) and are excluded from topo sort",
+          "description": "Kahn's skips nodes with no connections"
+        },
+        {
+          "id": "gr-s16-o3",
+          "label": "The algorithm needs more iterations \u2014 run it again to process the remaining nodes",
+          "description": "Kahn's sometimes requires multiple passes for large graphs"
+        }
+      ],
+      "correctOptionId": "gr-s16-o1",
+      "explanation": {
+        "reasoning": "In Kahn's algorithm, a node is only processed when its in-degree reaches 0 (all dependencies resolved). Nodes in a cycle have circular dependencies \u2014 none of them ever reach in-degree 0. So if result.length < total nodes, the remaining nodes are part of at least one cycle. This is how Kahn's doubles as a cycle detector.",
+        "tradeoffs": "Isolated nodes (no edges) actually DO get processed by Kahn's \u2014 they start with in-degree 0 and are enqueued immediately. So option 2 is wrong. Kahn's result size < V is a reliable and easy-to-implement cycle detection method for directed graphs.",
+        "keyTakeaway": "Kahn's topo sort: if result has fewer nodes than the graph, there's a cycle. The missing nodes are involved in cycles (their in-degree never reached 0).",
+        "commonMistake": "Assuming Kahn's always produces a complete ordering. You MUST check result.length == V to verify no cycles exist. Forgetting this check means accepting invalid orderings."
+      }
+    },
+    {
+      "id": "gr-s17",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "shortest-path"
+      ],
+      "prompt": {
+        "context": "You need the shortest path in a weighted graph where all weights are non-negative.",
+        "question": "What algorithm and data structure make this efficient?"
+      },
+      "options": [
+        {
+          "id": "gr-s17-o1",
+          "label": "Dijkstra's algorithm with a min-heap (priority queue). Greedily process the nearest unvisited node, relaxing its neighbors.",
+          "description": "Min-heap gives O(log V) extract-min. Process nodes in order of distance. Relax edges to update shorter paths."
+        },
+        {
+          "id": "gr-s17-o2",
+          "label": "BFS with a regular queue \u2014 it works for weighted graphs too",
+          "description": "BFS visits nodes in FIFO order which corresponds to shortest distance"
+        },
+        {
+          "id": "gr-s17-o3",
+          "label": "DFS tracking the minimum path sum to each node",
+          "description": "DFS explores all paths and keeps the minimum"
+        }
+      ],
+      "correctOptionId": "gr-s17-o1",
+      "explanation": {
+        "reasoning": "Dijkstra's: maintain a min-heap of (distance, node). Start with (0, source). Extract the minimum, process its neighbors: if current_dist + edge_weight < known_dist[neighbor], update and add to heap. The min-heap ensures we always process the globally nearest unvisited node. Time: O((V + E) log V) with a binary heap.",
+        "tradeoffs": "BFS only works for unweighted (or unit-weight) graphs. For weighted graphs, BFS doesn't process nodes in distance order. DFS would need to explore all paths \u2014 exponential. Dijkstra bridges the gap: O((V+E) log V) for non-negative weighted graphs.",
+        "keyTakeaway": "Dijkstra = BFS generalized to weighted graphs using a min-heap. O((V+E) log V). Only works with non-negative weights.",
+        "commonMistake": "Using BFS for weighted graphs \u2014 it gives wrong results. BFS only guarantees shortest path when all edges have equal weight."
+      }
+    },
+    {
+      "id": "gr-s18",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "shortest-path"
+      ],
+      "prompt": {
+        "context": "A graph has some edges with negative weights. You try to run Dijkstra's algorithm.",
+        "question": "Why does Dijkstra fail with negative edge weights?"
+      },
+      "options": [
+        {
+          "id": "gr-s18-o1",
+          "label": "Dijkstra marks nodes as 'done' after processing them, assuming their shortest distance is final. Negative edges can later provide a shorter path to a 'done' node, which Dijkstra misses.",
+          "description": "The greedy assumption (closest unprocessed node has its final distance) breaks when negative edges can reduce distances later."
+        },
+        {
+          "id": "gr-s18-o2",
+          "label": "Negative weights cause the priority queue to loop infinitely",
+          "description": "The heap keeps extracting nodes with decreasing negative distances forever"
+        },
+        {
+          "id": "gr-s18-o3",
+          "label": "Dijkstra only fails with negative cycles, not individual negative edges",
+          "description": "Individual negative edges are handled correctly; only cycles cause problems"
+        }
+      ],
+      "correctOptionId": "gr-s18-o1",
+      "explanation": {
+        "reasoning": "Dijkstra's greedy property: once a node is dequeued, its shortest distance is finalized. This relies on the assumption that adding more edges only increases the total distance (because all weights are non-negative). With negative edges, a longer path through more edges could have a shorter total distance. Dijkstra can't discover this because it already finalized the node.",
+        "tradeoffs": "For graphs with negative edges (but no negative cycles): use Bellman-Ford, O(VE). For graphs with negative cycles: shortest path is undefined (you can loop forever to decrease the distance). Bellman-Ford can detect negative cycles.",
+        "keyTakeaway": "Dijkstra fails with negative edges because its greedy assumption (finalized distances can't improve) breaks. Use Bellman-Ford for negative weights.",
+        "commonMistake": "Thinking Dijkstra only fails with negative cycles. Even a single negative edge can cause Dijkstra to return incorrect shortest paths."
+      }
+    },
+    {
+      "id": "gr-s19",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "shortest-path"
+      ],
+      "prompt": {
+        "context": "Network Delay Time (LC 743): n nodes, weighted directed edges, signal sent from node k. Find the minimum time for all nodes to receive the signal, or -1 if impossible.",
+        "question": "Which algorithm do you use, and what do you return?"
+      },
+      "options": [
+        {
+          "id": "gr-s19-o1",
+          "label": "Dijkstra from node k. Return the MAXIMUM shortest distance across all nodes \u2014 that's when the last node receives the signal. If any node is unreachable, return -1.",
+          "description": "Dijkstra gives shortest distance from k to every node. The answer is the max of those distances (the bottleneck is the farthest node)."
+        },
+        {
+          "id": "gr-s19-o2",
+          "label": "BFS from node k. Return the depth of the deepest node.",
+          "description": "BFS levels represent time steps in signal propagation"
+        },
+        {
+          "id": "gr-s19-o3",
+          "label": "Dijkstra from node k. Return the SUM of all shortest distances.",
+          "description": "Total propagation time is the sum of all individual delays"
+        }
+      ],
+      "correctOptionId": "gr-s19-o1",
+      "explanation": {
+        "reasoning": "Run Dijkstra from source k to compute the shortest distance to every node. The signal reaches each node at its shortest distance time. All nodes receive the signal by the time the FARTHEST node gets it. So the answer is max(dist[v] for all v). If any node has dist = infinity (unreachable), return -1.",
+        "tradeoffs": "BFS would only work if all delays were 1 (unweighted). Since edges have weights, Dijkstra is needed. This is a classic direct application of single-source shortest path.",
+        "keyTakeaway": "Network delay = Dijkstra from source, return the maximum shortest distance. The last node to be reached determines the total delay.",
+        "commonMistake": "Returning the sum or average of distances instead of the maximum. The signal propagates in parallel \u2014 the bottleneck is the farthest node, not the total distance."
+      }
+    },
+    {
+      "id": "gr-s20",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "union-find"
+      ],
+      "prompt": {
+        "context": "You're implementing Union-Find (Disjoint Set Union) for efficiently tracking connected components.",
+        "question": "What are the two critical optimizations that make Union-Find nearly O(1) per operation?"
+      },
+      "options": [
+        {
+          "id": "gr-s20-o1",
+          "label": "Path compression (flatten the tree during find) and union by rank/size (attach smaller tree under larger tree's root)",
+          "description": "Path compression: make every node point directly to the root during find. Union by rank: keep trees shallow by attaching the shorter tree."
+        },
+        {
+          "id": "gr-s20-o2",
+          "label": "Hashing the node values and using a balanced BST for the union operation",
+          "description": "Hash + BST combination provides logarithmic union operations"
+        },
+        {
+          "id": "gr-s20-o3",
+          "label": "Maintaining a sorted list of components and using binary search for find",
+          "description": "Sorted component list enables O(log n) find operations"
+        }
+      ],
+      "correctOptionId": "gr-s20-o1",
+      "explanation": {
+        "reasoning": "Path compression: during find(x), set every node on the path from x to root to point directly to the root. This flattens the tree for future queries. Union by rank: track the 'rank' (approximate height) of each tree. When unioning, attach the shorter tree under the taller tree's root to keep the result shallow. Together, these optimizations give O(\u03b1(n)) amortized time per operation, where \u03b1 is the inverse Ackermann function \u2014 effectively constant.",
+        "tradeoffs": "Without optimizations, Union-Find degenerates to O(n) per operation (a tall chain). With both optimizations, it's nearly O(1). Path compression alone or union by rank alone gives O(log n). Both together give O(\u03b1(n)).",
+        "keyTakeaway": "Union-Find optimizations: path compression (flatten during find) + union by rank (shorter under taller). Together: amortized O(\u03b1(n)) \u2248 O(1).",
+        "commonMistake": "Implementing union without rank \u2014 always attaching to the same side creates a degenerate chain. Also: forgetting path compression, which makes repeated finds slow."
+      }
+    },
+    {
+      "id": "gr-s21",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "union-find"
+      ],
+      "prompt": {
+        "context": "Number of Connected Components (LC 323): given n nodes and a list of edges, find the number of connected components. You could use DFS or Union-Find.",
+        "question": "When is Union-Find preferred over DFS for connected components?"
+      },
+      "options": [
+        {
+          "id": "gr-s21-o1",
+          "label": "Union-Find excels when edges arrive incrementally (streaming/dynamic) \u2014 you can add edges and query component count without rebuilding. DFS needs the full graph upfront.",
+          "description": "Union-Find handles dynamic edge additions in O(\u03b1(n)) per edge. DFS requires re-traversal when the graph changes."
+        },
+        {
+          "id": "gr-s21-o2",
+          "label": "Union-Find is always faster than DFS for connected components",
+          "description": "Union-Find is O(n) while DFS is O(V + E)"
+        },
+        {
+          "id": "gr-s21-o3",
+          "label": "DFS is always preferred \u2014 Union-Find is more complex for no benefit",
+          "description": "DFS is simpler and equally efficient for all cases"
+        }
+      ],
+      "correctOptionId": "gr-s21-o1",
+      "explanation": {
+        "reasoning": "For a static graph (all edges known upfront), both DFS and Union-Find are O(V + E). DFS is simpler to implement. But Union-Find shines when edges arrive over time (dynamic/streaming): each new edge is O(\u03b1(n)), and you can query the component count or whether two nodes are connected at any time. DFS would need a full re-traversal after each new edge.",
+        "tradeoffs": "For static graphs in interviews, both approaches are accepted. Union-Find demonstrates knowledge of advanced data structures. For dynamic connectivity (edges added/removed), Union-Find is the go-to. Note: basic Union-Find doesn't support efficient edge removal \u2014 for that you need link-cut trees or offline algorithms.",
+        "keyTakeaway": "Union-Find vs DFS for components: DFS for static graphs (simpler). Union-Find for dynamic graphs (incremental edge additions). Both O(V+E) for static.",
+        "commonMistake": "Over-engineering with Union-Find when a simple DFS suffices for a static graph. Use the simpler tool unless the problem has dynamic connectivity."
+      }
+    },
+    {
+      "id": "gr-s22",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "union-find",
+        "cycle-detection"
+      ],
+      "prompt": {
+        "context": "Redundant Connection (LC 684): a tree with n nodes and n edges (one extra edge creates exactly one cycle). Find the edge that creates the cycle.",
+        "question": "Why is Union-Find perfect for this problem?"
+      },
+      "options": [
+        {
+          "id": "gr-s22-o1",
+          "label": "Process edges one by one. If both endpoints are already in the same component (same root), this edge creates a cycle \u2014 it's the redundant one.",
+          "description": "Union-Find incrementally builds the graph. The first edge that connects two already-connected nodes creates the cycle."
+        },
+        {
+          "id": "gr-s22-o2",
+          "label": "Union-Find finds the longest path in the tree, and the last edge on that path is redundant",
+          "description": "The redundant edge is always part of the longest path"
+        },
+        {
+          "id": "gr-s22-o3",
+          "label": "Union-Find is needed because DFS can't detect cycles in undirected graphs",
+          "description": "Only Union-Find can find cycles in undirected graphs"
+        }
+      ],
+      "correctOptionId": "gr-s22-o1",
+      "explanation": {
+        "reasoning": "Process each edge (u, v): if find(u) != find(v), they're in different components \u2014 union them (no cycle). If find(u) == find(v), they're already connected \u2014 adding this edge creates a cycle. This edge is the redundant connection. Since we process edges in order and the problem guarantees exactly one extra edge, the last such edge (in input order) is the answer.",
+        "tradeoffs": "DFS can also detect cycles, but Union-Find naturally identifies WHICH edge creates the cycle as you process them sequentially. With DFS, you'd need to build the graph incrementally and check for cycles, which is more complex.",
+        "keyTakeaway": "Redundant Connection: Union-Find processes edges sequentially. The first edge where both endpoints share a root creates the cycle \u2014 that's the redundant edge.",
+        "commonMistake": "Returning the first cycle-creating edge found. The problem asks for the one that appears LAST in the input. Since we process in input order, the last one that satisfies find(u)==find(v) is the answer."
+      }
+    },
+    {
+      "id": "gr-s23",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "union-find"
+      ],
+      "prompt": {
+        "context": "Accounts Merge (LC 721): each account has a name and a list of emails. Two accounts belong to the same person if they share any email. Merge all accounts belonging to the same person.",
+        "question": "Why is this a Union-Find (or graph) problem?"
+      },
+      "options": [
+        {
+          "id": "gr-s23-o1",
+          "label": "Emails are nodes. Two emails in the same account are connected. Union-Find groups all connected emails into components = one person per component.",
+          "description": "Build a graph where emails in the same account are linked. Union-Find merges overlapping account email sets. Each component = one person."
+        },
+        {
+          "id": "gr-s23-o2",
+          "label": "Sort accounts by name and merge adjacent accounts with the same name",
+          "description": "Name matching is sufficient to identify the same person"
+        },
+        {
+          "id": "gr-s23-o3",
+          "label": "Use a hashmap from email to name \u2014 accounts with the same email automatically merge",
+          "description": "A simple email-to-name map resolves all merges"
+        }
+      ],
+      "correctOptionId": "gr-s23-o1",
+      "explanation": {
+        "reasoning": "If account A has emails {a, b} and account B has emails {b, c}, they share email b \u2014 same person. The merged account has {a, b, c}. This is a connected components problem: emails are nodes, edges connect emails in the same account. Union-Find efficiently merges: for each account, union all its emails together. After processing all accounts, each component = one person's emails. Map each component to the person's name.",
+        "tradeoffs": "You can also solve this with DFS/BFS on the email graph: build adjacency list from accounts, then find connected components. Both approaches are O(n * \u03b1(n)) or O(n) where n is total emails. Union-Find is slightly more natural here because you're incrementally merging sets.",
+        "keyTakeaway": "Accounts Merge = connected components on emails. Two accounts sharing any email belong to the same person. Union-Find merges email sets incrementally.",
+        "commonMistake": "Matching by name only. Multiple people can have the same name. The merge criterion is shared EMAIL, not shared name."
+      }
+    },
+    {
+      "id": "gr-s24",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "bfs-dfs",
+        "shortest-path"
+      ],
+      "prompt": {
+        "context": "You have a graph where some edges have weight 0 and others have weight 1. You need the shortest path from source to destination.",
+        "question": "What's more efficient than full Dijkstra for this special case?"
+      },
+      "options": [
+        {
+          "id": "gr-s24-o1",
+          "label": "0-1 BFS using a deque: add weight-0 neighbors to the FRONT, weight-1 neighbors to the BACK. This gives O(V+E) instead of Dijkstra's O((V+E) log V).",
+          "description": "The deque maintains sorted-by-distance order for 0 and 1 weights, avoiding the heap overhead."
+        },
+        {
+          "id": "gr-s24-o2",
+          "label": "Standard BFS ignoring weights \u2014 the weights don't matter for finding shortest paths",
+          "description": "BFS works correctly on any graph regardless of edge weights"
+        },
+        {
+          "id": "gr-s24-o3",
+          "label": "There's no optimization \u2014 Dijkstra is required for any weighted graph",
+          "description": "Weighted shortest path always needs a priority queue"
+        }
+      ],
+      "correctOptionId": "gr-s24-o1",
+      "explanation": {
+        "reasoning": "When edges only have weights 0 or 1, use a deque instead of a heap. When relaxing a neighbor: if edge weight is 0, add to the FRONT of the deque (same distance level). If weight is 1, add to the BACK (next distance level). This maintains the invariant that the deque is ordered by distance, just like BFS's queue is ordered for unweighted graphs. Time: O(V+E), no log factor from the heap.",
+        "tradeoffs": "0-1 BFS is a nice middle ground between BFS (unweighted) and Dijkstra (arbitrary weights). It's useful in problems where costs are binary (free/paid, obstacle/clear). For interviews, mention it as an optimization when you see 0-1 weight patterns.",
+        "keyTakeaway": "0-1 BFS: deque with weight-0 neighbors at front, weight-1 at back. O(V+E) for graphs with only 0 and 1 edge weights.",
+        "commonMistake": "Using full Dijkstra O((V+E) log V) when 0-1 BFS gives O(V+E). Recognize the 0-1 weight pattern and optimize accordingly."
+      }
+    }
+  ]
+}

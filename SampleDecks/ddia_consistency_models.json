@@ -1,0 +1,229 @@
+{
+  "id": "ddia-consistency-models",
+  "title": "DDIA: Consistency Models",
+  "description": "Decision scenarios exploring consistency models from Designing Data-Intensive Applications",
+  "domain": "distributed-systems",
+  "version": "1.0",
+  "concepts": [
+    {
+      "id": "linearizability",
+      "name": "Linearizability",
+      "description": "A consistency model where operations appear to execute atomically and in real-time order. The strongest single-object consistency guarantee."
+    },
+    {
+      "id": "eventual-consistency",
+      "name": "Eventual Consistency",
+      "description": "A consistency model where replicas will eventually converge to the same state if no new updates are made, but may return stale reads in the meantime."
+    },
+    {
+      "id": "causal-consistency",
+      "name": "Causal Consistency",
+      "description": "A consistency model that preserves cause-and-effect ordering. If operation A causally precedes B, all nodes see A before B."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "cm-scenario-leader-election",
+      "type": "decision",
+      "difficulty": 3,
+      "tags": [
+        "consistency",
+        "distributed-systems",
+        "coordination"
+      ],
+      "concepts": [
+        "linearizability"
+      ],
+      "prompt": {
+        "context": "You're designing a distributed lock service for leader election across 5 data centers. The system must guarantee that at most one node holds the lock at any time. Network partitions between data centers occur roughly once per month and last 5-30 seconds.",
+        "constraints": [
+          "At most one leader at any time (safety)",
+          "System should recover automatically after partitions",
+          "Lock acquisition latency under 100ms during normal operation"
+        ],
+        "question": "Which consistency model should you use for the lock service?"
+      },
+      "options": [
+        {
+          "id": "cm-opt-eventual",
+          "label": "Eventual Consistency",
+          "description": "Use eventual consistency with conflict resolution. Fastest performance and highest availability."
+        },
+        {
+          "id": "cm-opt-linearizable",
+          "label": "Linearizability",
+          "description": "Use linearizable reads and writes via consensus protocol (e.g., Raft/Paxos). Guarantees single lock holder."
+        },
+        {
+          "id": "cm-opt-causal",
+          "label": "Causal Consistency",
+          "description": "Use causal consistency to track lock ownership with vector clocks."
+        },
+        {
+          "id": "cm-opt-read-your-writes",
+          "label": "Read-Your-Writes",
+          "description": "Use session-level read-your-writes consistency for the lock state."
+        }
+      ],
+      "correctOptionId": "cm-opt-linearizable",
+      "explanation": {
+        "reasoning": "Leader election requires a mutual exclusion guarantee: at most one node can hold the lock. This is fundamentally a linearizability requirement \u2014 the lock must behave as if there's a single copy, and all operations must be totally ordered. Eventual consistency could allow two nodes to both believe they hold the lock during a partition (split-brain). Consensus protocols like Raft or Paxos provide exactly this guarantee.",
+        "tradeoffs": "Linearizability sacrifices availability during partitions (CAP theorem). During a network partition, the minority partition cannot acquire or release locks. This is acceptable for leader election since having no leader temporarily is safer than having two leaders.",
+        "keyTakeaway": "Any safety-critical coordination task (locks, leader election, unique ID generation) requires linearizability. Accept unavailability during partitions rather than risk split-brain.",
+        "commonMistake": "Choosing eventual consistency for better availability without realizing it violates the mutual exclusion safety requirement. Two nodes could simultaneously believe they are the leader."
+      }
+    },
+    {
+      "id": "cm-scenario-social-feed",
+      "type": "decision",
+      "difficulty": 2,
+      "tags": [
+        "consistency",
+        "social-media",
+        "read-heavy"
+      ],
+      "concepts": [
+        "eventual-consistency",
+        "causal-consistency"
+      ],
+      "prompt": {
+        "context": "You're building a social media news feed for an app with 50M daily active users. Users post updates that appear in their followers' feeds. The system is deployed across 3 regions. Users expect to see their own posts immediately but can tolerate seeing others' posts with a few seconds delay.",
+        "constraints": [
+          "50M DAU, read-heavy workload (100:1 read:write ratio)",
+          "Users must see their own posts immediately",
+          "Feed ordering doesn't need to be globally consistent",
+          "99.9% availability target"
+        ],
+        "question": "Which consistency approach best fits this use case?"
+      },
+      "options": [
+        {
+          "id": "cm-opt-strong",
+          "label": "Strong Consistency",
+          "description": "Use synchronous replication and linearizable reads for all feed queries."
+        },
+        {
+          "id": "cm-opt-eventual-ryw",
+          "label": "Eventual + Read-Your-Writes",
+          "description": "Use eventual consistency for the feed with read-your-writes guarantee for the posting user's own session."
+        },
+        {
+          "id": "cm-opt-causal-feed",
+          "label": "Full Causal Consistency",
+          "description": "Track causal dependencies between all posts and comments using vector clocks."
+        },
+        {
+          "id": "cm-opt-eventual-only",
+          "label": "Pure Eventual Consistency",
+          "description": "Use eventual consistency everywhere with no additional guarantees."
+        }
+      ],
+      "correctOptionId": "cm-opt-eventual-ryw",
+      "explanation": {
+        "reasoning": "The requirements explicitly state users must see their own posts immediately (read-your-writes) but can tolerate delay for others' posts (eventual consistency). This maps directly to eventual consistency with a read-your-writes session guarantee. The posting user reads from the leader or a replica that has their latest write; other users can read from any replica.",
+        "tradeoffs": "Pure eventual consistency would be simpler but violates the 'see your own posts' requirement. Strong consistency would work but is overkill \u2014 it adds cross-region latency and reduces availability for a use case that doesn't need global ordering. Full causal consistency adds unnecessary complexity for a feed that doesn't require strict causal ordering.",
+        "keyTakeaway": "Match the consistency level to your actual requirements. Read-your-writes is often the sweet spot for user-facing applications: users see their own actions reflected immediately while the system remains highly available.",
+        "commonMistake": "Over-engineering with strong consistency when the use case only needs read-your-writes. This would significantly impact latency and availability at 50M DAU scale."
+      }
+    },
+    {
+      "id": "cm-scenario-replication-topology",
+      "type": "diagram",
+      "difficulty": 4,
+      "tags": [
+        "replication",
+        "consistency",
+        "topology"
+      ],
+      "concepts": [
+        "linearizability",
+        "eventual-consistency"
+      ],
+      "prompt": {
+        "context": "You're evaluating replication topologies for a multi-leader database setup across 3 data centers. The diagram shows the write propagation paths. You need to understand which topology provides the best consistency guarantees while handling a single data center failure.",
+        "constraints": [
+          "3 data centers, each with a leader",
+          "Must survive single data center failure",
+          "Write conflicts should be minimized",
+          "Replication lag should be predictable"
+        ],
+        "question": "Looking at the replication topologies, which provides the most predictable consistency behavior?"
+      },
+      "options": [
+        {
+          "id": "cm-opt-circular",
+          "label": "Circular Replication",
+          "description": "Each leader replicates to the next in a ring: DC1\u2192DC2\u2192DC3\u2192DC1."
+        },
+        {
+          "id": "cm-opt-star",
+          "label": "Star Replication",
+          "description": "One designated root leader forwards all writes. DC1\u2194DC2, DC1\u2194DC3."
+        },
+        {
+          "id": "cm-opt-all-to-all",
+          "label": "All-to-All Replication",
+          "description": "Every leader replicates directly to every other leader. DC1\u2194DC2, DC2\u2194DC3, DC1\u2194DC3."
+        }
+      ],
+      "correctOptionId": "cm-opt-all-to-all",
+      "explanation": {
+        "reasoning": "All-to-all replication provides the most predictable consistency because every write reaches every other data center directly in a single hop. With circular replication, a write at DC1 reaches DC3 via DC2 \u2014 if DC2 fails, DC3 stops receiving DC1's writes entirely. Star topology has a single point of failure at the root. All-to-all ensures each DC failure only affects direct replication to that DC, not replication between surviving DCs.",
+        "tradeoffs": "All-to-all has higher network overhead (more replication connections) and can suffer from write ordering issues where writes arrive in different orders at different DCs. However, the consistency behavior is more predictable because there are no indirect replication paths that could break.",
+        "keyTakeaway": "In multi-leader setups, all-to-all replication is most fault-tolerant because no single node failure can disrupt replication between the remaining nodes. The tradeoff is more replication connections and potential ordering complexity.",
+        "commonMistake": "Choosing circular replication for its simplicity without realizing that any single node failure breaks the replication chain for all downstream nodes."
+      },
+      "diagram": {
+        "nodes": [
+          {
+            "id": "dc1",
+            "label": "DC1\n(Leader)",
+            "type": "primary"
+          },
+          {
+            "id": "dc2",
+            "label": "DC2\n(Leader)",
+            "type": "primary"
+          },
+          {
+            "id": "dc3",
+            "label": "DC3\n(Leader)",
+            "type": "primary"
+          }
+        ],
+        "edges": [
+          {
+            "from": "dc1",
+            "to": "dc2",
+            "label": "replicates"
+          },
+          {
+            "from": "dc2",
+            "to": "dc1",
+            "label": "replicates"
+          },
+          {
+            "from": "dc2",
+            "to": "dc3",
+            "label": "replicates"
+          },
+          {
+            "from": "dc3",
+            "to": "dc2",
+            "label": "replicates"
+          },
+          {
+            "from": "dc1",
+            "to": "dc3",
+            "label": "replicates"
+          },
+          {
+            "from": "dc3",
+            "to": "dc1",
+            "label": "replicates"
+          }
+        ]
+      }
+    }
+  ]
+}

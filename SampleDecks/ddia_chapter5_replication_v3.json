@@ -1,0 +1,2247 @@
+{
+  "id": "ddia-ch5-replication-v2",
+  "title": "DDIA Ch.5: Replication",
+  "description": "Exhaustive decision scenarios from Designing Data-Intensive Applications Chapter 5 \u2014 Replication. Covers single-leader, multi-leader, and leaderless replication; sync vs async; failover pitfalls; replication log implementations; replication lag anomalies; conflict resolution; quorums; version vectors.",
+  "domain": "distributed-systems",
+  "version": "3.0",
+  "concepts": [
+    {
+      "id": "leader-follower",
+      "name": "Leader-Based Replication",
+      "description": "One replica (leader/primary) accepts all writes and streams changes to read-only followers (secondaries). The most common replication approach in relational and some NoSQL databases."
+    },
+    {
+      "id": "sync-async",
+      "name": "Synchronous vs Asynchronous Replication",
+      "description": "Synchronous replication waits for follower acknowledgment before confirming a write \u2014 guaranteeing durability but increasing latency. Asynchronous confirms immediately on the leader \u2014 lower latency but risk of data loss if the leader fails."
+    },
+    {
+      "id": "follower-setup",
+      "name": "Setting Up New Followers",
+      "description": "Adding a new replica without downtime: take a consistent snapshot, copy it, then have the follower request all changes since the snapshot's log sequence position."
+    },
+    {
+      "id": "failover",
+      "name": "Failover & Node Outages",
+      "description": "Handling leader failure (promote a follower, reconfigure clients) and follower failure (catch-up recovery from replication log). Failover is fraught with dangers: data loss, split brain, cascading failures from premature timeouts."
+    },
+    {
+      "id": "replication-logs",
+      "name": "Replication Log Implementations",
+      "description": "How changes are shipped from leader to followers: statement-based (forward SQL), WAL shipping (physical byte-level log), logical/row-based (decoupled from storage engine), and trigger-based (application-layer)."
+    },
+    {
+      "id": "replication-lag",
+      "name": "Replication Lag Problems",
+      "description": "Anomalies that arise from async replication lag: reading stale data, seeing time go backward, observing causal violations. Addressed by consistency guarantees like read-after-write, monotonic reads, and consistent prefix reads."
+    },
+    {
+      "id": "read-after-write",
+      "name": "Read-After-Write Consistency",
+      "description": "Guarantee that users always see their own submitted data. Techniques: read user-modified data from leader, track last-write timestamp, use logical timestamps to route reads."
+    },
+    {
+      "id": "monotonic-reads",
+      "name": "Monotonic Reads",
+      "description": "Guarantee that a user will not see time go backward \u2014 they won't read older data after having previously read newer data. Achieved by routing each user's reads to the same replica."
+    },
+    {
+      "id": "consistent-prefix",
+      "name": "Consistent Prefix Reads",
+      "description": "Guarantee that if writes happen in a certain causal order, any reader observes them in that order. Violations occur when causally related writes are spread across different partitions with independent replication streams."
+    },
+    {
+      "id": "multi-leader",
+      "name": "Multi-Leader Replication",
+      "description": "Multiple nodes accept writes, each acting as leader and follower to the others. Use cases: multi-datacenter, offline-capable apps, collaborative editing. Main challenge: write conflicts."
+    },
+    {
+      "id": "conflict-resolution",
+      "name": "Write Conflict Handling",
+      "description": "Strategies for resolving concurrent writes in multi-leader/leaderless systems: conflict avoidance, last-write-wins (LWW), merge values, on-write handlers, on-read resolution (CouchDB), CRDTs, operational transformation."
+    },
+    {
+      "id": "replication-topologies",
+      "name": "Multi-Leader Replication Topologies",
+      "description": "Communication paths for propagating writes: circular, star/tree, and all-to-all. Circular/star have single points of failure. All-to-all is more fault-tolerant but can suffer from causality violations due to variable network delays."
+    },
+    {
+      "id": "leaderless",
+      "name": "Leaderless (Dynamo-Style) Replication",
+      "description": "Clients write to and read from multiple replicas directly. No failover needed. Uses quorums (w + r > n) for consistency, read repair and anti-entropy for convergence. Used by Riak, Cassandra, Voldemort."
+    },
+    {
+      "id": "quorums",
+      "name": "Quorums, Sloppy Quorums & Hinted Handoff",
+      "description": "Quorum condition w + r > n ensures overlap between write and read sets. Sloppy quorums accept writes on non-home nodes during network partitions (increasing availability but weakening consistency). Hinted handoff moves data back when partition heals."
+    },
+    {
+      "id": "version-vectors",
+      "name": "Detecting Concurrent Writes & Version Vectors",
+      "description": "Algorithms for distinguishing concurrent writes from causally ordered ones. Single-replica: version numbers per key. Multi-replica: version vectors (one version number per replica per key). Siblings must be merged by the application. Tombstones handle deletions."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "ch5-s01",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "leader-follower"
+      ],
+      "prompt": {
+        "context": "You're designing a web application with a PostgreSQL database. The workload is 95% reads and 5% writes. You need to scale read throughput without changing the write path.",
+        "question": "Which replication setup is most appropriate?"
+      },
+      "options": [
+        {
+          "id": "ch5-s01-o1",
+          "label": "Single-leader with read replicas",
+          "description": "One leader handles all writes; multiple followers serve reads"
+        },
+        {
+          "id": "ch5-s01-o2",
+          "label": "Multi-leader replication",
+          "description": "Multiple nodes accept writes independently"
+        },
+        {
+          "id": "ch5-s01-o3",
+          "label": "Leaderless replication",
+          "description": "Clients write to and read from multiple nodes using quorums"
+        }
+      ],
+      "correctOptionId": "ch5-s01-o1",
+      "explanation": {
+        "reasoning": "For a read-heavy workload with a single write path, single-leader replication is ideal. Adding read replicas (followers) scales read throughput linearly. Writes go to one leader, avoiding conflict resolution complexity.",
+        "tradeoffs": "Multi-leader and leaderless add conflict resolution complexity that isn't needed here. Multi-leader makes sense for multi-datacenter or offline use cases. Leaderless is better when you need high write availability without failover.",
+        "keyTakeaway": "Single-leader replication with read replicas is the simplest way to scale read-heavy workloads.",
+        "commonMistake": "Jumping to multi-leader or leaderless for simple read-scaling when single-leader with followers is sufficient and avoids conflict handling."
+      }
+    },
+    {
+      "id": "ch5-s02",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "leader-follower"
+      ],
+      "prompt": {
+        "context": "In your leader-based replicated PostgreSQL setup, a client accidentally connects to a follower replica and issues an INSERT statement.",
+        "question": "What happens when a follower receives a write request?"
+      },
+      "options": [
+        {
+          "id": "ch5-s02-o1",
+          "label": "The follower rejects the write or forwards it to the leader",
+          "description": "Followers are read-only; writes must go through the leader"
+        },
+        {
+          "id": "ch5-s02-o2",
+          "label": "The follower processes the write locally and replicates it to the leader",
+          "description": "Any replica can accept writes"
+        },
+        {
+          "id": "ch5-s02-o3",
+          "label": "The follower queues the write until it becomes the leader",
+          "description": "Writes are buffered for future processing"
+        }
+      ],
+      "correctOptionId": "ch5-s02-o1",
+      "explanation": {
+        "reasoning": "In leader-based replication, followers are strictly read-only. All writes MUST go through the single leader, which then streams changes to followers via the replication log. If a client sends a write to a follower, the follower either rejects it with an error or (in some systems) transparently forwards it to the leader.",
+        "tradeoffs": "This write restriction is the fundamental trade-off of single-leader replication: simple consistency (no write conflicts) at the cost of a single write bottleneck. Multi-leader and leaderless designs remove this restriction but introduce conflict resolution complexity.",
+        "keyTakeaway": "In leader-based replication, followers are read-only. All writes flow through the single leader, ensuring a total ordering of all write operations.",
+        "commonMistake": "Assuming any replica can accept writes in a leader-based setup. The leader-follower distinction is fundamental: only the leader processes writes."
+      }
+    },
+    {
+      "id": "ch5-s03",
+      "type": "decision",
+      "difficulty": 1,
+      "concepts": [
+        "leader-follower"
+      ],
+      "prompt": {
+        "context": "You're reviewing the replication architectures of several systems:\n\n- PostgreSQL, MySQL, MongoDB\n- Kafka (for each partition)\n- Riak, Cassandra, Voldemort\n- RethinkDB, Espresso",
+        "question": "Which of these systems use leader-based (single-leader) replication?"
+      },
+      "options": [
+        {
+          "id": "ch5-s03-o1",
+          "label": "PostgreSQL, MySQL, MongoDB, Kafka, RethinkDB, Espresso",
+          "description": "All of these use a single leader that accepts writes and streams to followers"
+        },
+        {
+          "id": "ch5-s03-o2",
+          "label": "All of them \u2014 every database uses leader-based replication",
+          "description": "Leader-based is the universal approach"
+        },
+        {
+          "id": "ch5-s03-o3",
+          "label": "Only traditional RDBMS: PostgreSQL and MySQL",
+          "description": "NoSQL and streaming systems use different approaches"
+        }
+      ],
+      "correctOptionId": "ch5-s03-o1",
+      "explanation": {
+        "reasoning": "Leader-based replication is used by most relational databases (PostgreSQL, MySQL, Oracle, SQL Server), some NoSQL databases (MongoDB, RethinkDB, Espresso), and even distributed message brokers like Kafka (which uses a leader per partition). Riak, Cassandra, and Voldemort are the notable exceptions \u2014 they use leaderless (Dynamo-style) replication.",
+        "tradeoffs": "Leader-based replication is the most common approach because it's well-understood and avoids write conflicts. Leaderless systems (Riak, Cassandra) trade this simplicity for higher write availability and no failover requirement.",
+        "keyTakeaway": "Leader-based replication is the dominant approach across relational databases, many NoSQL databases, and even Kafka partition replication. Leaderless is a specialized alternative.",
+        "commonMistake": "Thinking leader-based replication is only for relational databases. MongoDB, RethinkDB, and Kafka all use it too \u2014 it's not just an RDBMS pattern."
+      }
+    },
+    {
+      "id": "ch5-s04",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "sync-async"
+      ],
+      "prompt": {
+        "context": "You run a leader-based replicated database with 3 followers. You want to guarantee that if the leader crashes, at least one follower has all committed data. But you also need the system to keep processing writes even if one follower goes down.\n\nConfiguration options:\n- A: All followers synchronous\n- B: One follower synchronous, rest asynchronous (semi-synchronous)\n- C: All followers asynchronous",
+        "question": "Which configuration balances durability and availability?"
+      },
+      "options": [
+        {
+          "id": "ch5-s04-o1",
+          "label": "All synchronous",
+          "description": "Every follower must confirm before the write succeeds"
+        },
+        {
+          "id": "ch5-s04-o2",
+          "label": "Semi-synchronous",
+          "description": "One follower synchronous, others asynchronous; if the sync follower fails, another is promoted to sync"
+        },
+        {
+          "id": "ch5-s04-o3",
+          "label": "All asynchronous",
+          "description": "Leader confirms immediately without waiting for any follower"
+        }
+      ],
+      "correctOptionId": "ch5-s04-o2",
+      "explanation": {
+        "reasoning": "Semi-synchronous guarantees an up-to-date copy on at least two nodes (leader + one sync follower). If the sync follower goes down, an async follower is promoted to synchronous, maintaining the guarantee without blocking all writes.",
+        "tradeoffs": "All-synchronous blocks writes if ANY follower is unavailable \u2014 one node outage halts the entire system. All-asynchronous risks data loss if the leader fails before replication completes. Semi-synchronous is the practical middle ground.",
+        "keyTakeaway": "Semi-synchronous replication ensures data is on at least two nodes while tolerating individual follower failures.",
+        "commonMistake": "Thinking 'synchronous replication' means all followers are synchronous. In practice, it usually means semi-synchronous \u2014 one sync follower with automatic promotion."
+      }
+    },
+    {
+      "id": "ch5-s05",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "sync-async"
+      ],
+      "prompt": {
+        "context": "Your leader-based database uses fully asynchronous replication. The leader has confirmed a write to the client, but crashes 200ms later before the change reached any follower.",
+        "question": "What happens to that confirmed write?"
+      },
+      "options": [
+        {
+          "id": "ch5-s05-o1",
+          "label": "The write is lost",
+          "description": "No follower has the data; it's gone when a new leader is elected"
+        },
+        {
+          "id": "ch5-s05-o2",
+          "label": "The write is preserved",
+          "description": "The replication log ensures durability"
+        },
+        {
+          "id": "ch5-s05-o3",
+          "label": "The write is replayed from the client",
+          "description": "The database protocol ensures the client retries"
+        }
+      ],
+      "correctOptionId": "ch5-s05-o1",
+      "explanation": {
+        "reasoning": "With fully asynchronous replication, the leader confirms writes without waiting for followers. If the leader crashes before any follower received the change, that write is permanently lost \u2014 even though the client received a success confirmation.",
+        "tradeoffs": "This violates durability expectations. The trade-off is that async replication allows the leader to keep processing writes even when followers are slow or unavailable. For many use cases this is acceptable; for financial transactions it's not.",
+        "keyTakeaway": "In fully async replication, a confirmed write is NOT guaranteed to be durable \u2014 it can be lost if the leader fails before replication.",
+        "commonMistake": "Assuming that a successful write acknowledgment means the data is safely stored on multiple nodes. With async replication, it only means the leader processed it."
+      }
+    },
+    {
+      "id": "ch5-s06",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "sync-async"
+      ],
+      "prompt": {
+        "context": "An engineer proposes making ALL 5 followers synchronous for maximum durability: 'If we replicate synchronously to every follower, we'll never lose data.' The system spans 3 availability zones.",
+        "question": "Why is fully synchronous replication across all followers impractical?"
+      },
+      "options": [
+        {
+          "id": "ch5-s06-o1",
+          "label": "Any single follower outage or slow response blocks ALL writes system-wide",
+          "description": "Every follower must confirm before the leader can acknowledge the write"
+        },
+        {
+          "id": "ch5-s06-o2",
+          "label": "Synchronous replication uses too much network bandwidth",
+          "description": "The data is sent to too many nodes simultaneously"
+        },
+        {
+          "id": "ch5-s06-o3",
+          "label": "The leader's CPU can't handle tracking 5 synchronous connections",
+          "description": "Hardware limitations prevent more than 2-3 sync followers"
+        }
+      ],
+      "correctOptionId": "ch5-s06-o1",
+      "explanation": {
+        "reasoning": "If ALL followers must confirm before a write succeeds, then any single node being slow, experiencing a GC pause, or being unreachable blocks the entire system from processing writes. With 5 followers across 3 zones, the probability of at least one node being unavailable at any moment is high. The system's write availability equals the availability of its least-available follower.",
+        "tradeoffs": "This is why 'synchronous replication' in practice means semi-synchronous: ONE follower is synchronous (guaranteeing data on at least 2 nodes), and the rest are asynchronous. If the sync follower becomes unavailable, an async follower is promoted to sync.",
+        "keyTakeaway": "Fully synchronous replication to all followers is impractical because any single slow or unavailable follower blocks all writes. In practice, 'synchronous' means semi-synchronous.",
+        "commonMistake": "Conflating 'synchronous replication' with 'all followers are synchronous.' The term almost always means semi-synchronous \u2014 one guaranteed sync follower with automatic promotion."
+      }
+    },
+    {
+      "id": "ch5-s07",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "sync-async"
+      ],
+      "prompt": {
+        "context": "You're studying an alternative to traditional leader-based replication called chain replication, used in systems like Microsoft Azure Storage.\n\nIn chain replication, nodes are arranged in a chain: Head \u2192 Node B \u2192 Node C \u2192 Tail.\n- Writes enter at the head and propagate sequentially through the chain\n- Reads are served from the tail\n- The tail only has data that has passed through ALL intermediate nodes",
+        "question": "What advantage does chain replication provide over standard semi-synchronous replication?"
+      },
+      "options": [
+        {
+          "id": "ch5-s07-o1",
+          "label": "Strong consistency with better throughput distribution \u2014 reads and writes hit different nodes",
+          "description": "The head handles write ingestion while the tail handles reads, spreading load across the chain"
+        },
+        {
+          "id": "ch5-s07-o2",
+          "label": "Lower latency because the chain is shorter than a fan-out",
+          "description": "Sequential propagation is faster than parallel"
+        },
+        {
+          "id": "ch5-s07-o3",
+          "label": "No need for a leader \u2014 any node can accept writes",
+          "description": "Chain replication eliminates the single leader bottleneck"
+        }
+      ],
+      "correctOptionId": "ch5-s07-o1",
+      "explanation": {
+        "reasoning": "Chain replication achieves strong consistency: the tail only serves data that all nodes have acknowledged. It distributes load well \u2014 write ingestion at the head, reads at the tail. This is a variant of synchronous replication that provides strong consistency guarantees while spreading work across nodes, as used in Azure Storage.",
+        "tradeoffs": "Chain replication has higher write latency than semi-synchronous (writes must pass through every node sequentially). If a middle node fails, the chain must be reconfigured. It's a research-inspired approach that works well for specific use cases but is less common than standard leader-follower.",
+        "keyTakeaway": "Chain replication is a synchronous replication variant that provides strong consistency by reading from the tail of a write chain, used in production systems like Azure Storage.",
+        "commonMistake": "Thinking chain replication is just a slower version of parallel synchronous replication. The key insight is separating read and write nodes for better load distribution."
+      }
+    },
+    {
+      "id": "ch5-s08",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "follower-setup"
+      ],
+      "prompt": {
+        "context": "You need to add a new follower to a running production database without downtime. The database has been running for months with continuous writes.\n\nProposed approach:\n1. Take a consistent snapshot of the leader\n2. Copy the snapshot to the new follower node\n3. ???\n4. Follower is now caught up and receiving live changes",
+        "question": "What is the critical missing step 3?"
+      },
+      "options": [
+        {
+          "id": "ch5-s08-o1",
+          "label": "Lock the leader for writes until follower catches up",
+          "description": "Prevent new writes while the follower processes the backlog"
+        },
+        {
+          "id": "ch5-s08-o2",
+          "label": "Follower requests all changes since the snapshot's log position",
+          "description": "The snapshot is associated with a position in the leader's replication log (e.g., binlog coordinates)"
+        },
+        {
+          "id": "ch5-s08-o3",
+          "label": "Replay all writes from the beginning of time",
+          "description": "Follower replays the entire replication log from the start"
+        }
+      ],
+      "correctOptionId": "ch5-s08-o2",
+      "explanation": {
+        "reasoning": "The snapshot is associated with an exact position in the leader's replication log (PostgreSQL: log sequence number, MySQL: binlog coordinates). The follower connects to the leader and requests all changes since that position. Once it processes this backlog, it has caught up.",
+        "tradeoffs": "Locking the leader defeats the purpose of zero-downtime setup. Replaying from the beginning is wasteful \u2014 the snapshot already contains that data. The log position is the key that bridges the snapshot to the live stream.",
+        "keyTakeaway": "Setting up a new follower requires a consistent snapshot tagged with its exact replication log position, so the follower knows where to start streaming changes from.",
+        "commonMistake": "Forgetting that the snapshot must be associated with a specific log position. Without this, the follower can't determine which changes it's missing."
+      }
+    },
+    {
+      "id": "ch5-s09",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "follower-setup"
+      ],
+      "prompt": {
+        "context": "An engineer suggests a shortcut for setting up a new follower: 'Let's just copy the leader's data directory files to the new follower node using rsync while the database is running.'",
+        "question": "Why doesn't simply copying the data files work?"
+      },
+      "options": [
+        {
+          "id": "ch5-s09-o1",
+          "label": "The files are constantly being modified \u2014 the copy will be internally inconsistent",
+          "description": "Different files (or parts of files) will reflect different points in time"
+        },
+        {
+          "id": "ch5-s09-o2",
+          "label": "The file format is encrypted and requires a decryption key per node",
+          "description": "Each node encrypts its data with a unique key"
+        },
+        {
+          "id": "ch5-s09-o3",
+          "label": "The files are too large to transfer over the network",
+          "description": "Database files are always larger than available bandwidth allows"
+        }
+      ],
+      "correctOptionId": "ch5-s09-o1",
+      "explanation": {
+        "reasoning": "While you're copying files, the database is continuously processing writes. Different files \u2014 or even different parts of the same file \u2014 will reflect different points in time. The result is a logically inconsistent snapshot: some data reflects the state at 10:00:00, other data reflects 10:00:05. The database cannot start correctly from such an inconsistent state.",
+        "tradeoffs": "The correct approach is to use a tool that produces a consistent snapshot: filesystem-level snapshots (LVM, ZFS), pg_basebackup (PostgreSQL), xtrabackup (MySQL), or briefly locking the database. These ensure the snapshot reflects a single point in time.",
+        "keyTakeaway": "You cannot copy a running database's files for replication \u2014 concurrent writes make the copy internally inconsistent. Use a proper consistent snapshot mechanism.",
+        "commonMistake": "Thinking rsync or cp of data files while the database is running produces a usable copy. It doesn't \u2014 the lack of point-in-time consistency makes the copy corrupted."
+      }
+    },
+    {
+      "id": "ch5-s10",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "follower-setup"
+      ],
+      "prompt": {
+        "context": "When setting up a new follower, the documentation says to 'note the binlog coordinates' (MySQL) or 'log sequence number' (PostgreSQL) at the time of the snapshot.",
+        "question": "What does this position in the replication log represent?"
+      },
+      "options": [
+        {
+          "id": "ch5-s10-o1",
+          "label": "The exact point in the replication log corresponding to the snapshot's consistent state",
+          "description": "It marks where the follower should start streaming changes from the leader"
+        },
+        {
+          "id": "ch5-s10-o2",
+          "label": "The total number of writes the leader has ever processed",
+          "description": "A cumulative counter of all historical operations"
+        },
+        {
+          "id": "ch5-s10-o3",
+          "label": "A timestamp of when the snapshot was initiated",
+          "description": "A wall-clock time used to filter changes by date"
+        }
+      ],
+      "correctOptionId": "ch5-s10-o1",
+      "explanation": {
+        "reasoning": "The binlog coordinates (MySQL) or log sequence number (PostgreSQL) identify the exact position in the leader's replication log that corresponds to the snapshot's consistent state. The new follower connects and says 'send me all changes after position X.' This bridges the gap between the static snapshot and the live replication stream with no gaps or overlaps.",
+        "tradeoffs": "Without this position, the follower can't know where to start \u2014 it might miss changes (data loss) or replay changes already in the snapshot (duplicates, errors). The snapshot and its log position are inseparable: one is useless without the other.",
+        "keyTakeaway": "The replication log position (binlog coordinates / LSN) is the critical link between a consistent snapshot and the live replication stream. It tells the follower exactly where to start catching up.",
+        "commonMistake": "Treating the snapshot and log position as independent pieces. They form a pair: the snapshot represents a specific state, and the log position tells the follower where that state sits in the stream of changes."
+      }
+    },
+    {
+      "id": "ch5-s11",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "failover"
+      ],
+      "prompt": {
+        "context": "Your MySQL database uses async replication. After an automatic failover, the old leader comes back online. It has writes in its replication log that the new leader never received. Your system also uses Redis, which references MySQL primary keys.\n\nThis is similar to a real incident that occurred at GitHub.",
+        "question": "What is the most dangerous consequence?"
+      },
+      "options": [
+        {
+          "id": "ch5-s11-o1",
+          "label": "Primary key reuse causes cross-system inconsistency",
+          "description": "The new leader reuses autoincrement IDs that the old leader already assigned, causing MySQL-Redis data corruption"
+        },
+        {
+          "id": "ch5-s11-o2",
+          "label": "Temporary read unavailability",
+          "description": "Reads fail until the old leader's data is merged"
+        },
+        {
+          "id": "ch5-s11-o3",
+          "label": "Increased replication lag",
+          "description": "The followers take longer to catch up after failover"
+        }
+      ],
+      "correctOptionId": "ch5-s11-o1",
+      "explanation": {
+        "reasoning": "This is the actual GitHub incident. The old leader's unreplicated writes used autoincrementing primary keys. The new leader's counter lagged behind, so it reused those same primary keys for different rows. Since Redis also referenced these keys, private user data was disclosed to the wrong users.",
+        "tradeoffs": "The common 'solution' of discarding the old leader's unreplicated writes is itself dangerous when external systems (Redis, caches, search indexes) hold references to data created with those writes. The inconsistency spans system boundaries.",
+        "keyTakeaway": "Failover with async replication can cause primary key reuse, leading to cross-system data corruption \u2014 especially dangerous with autoincrementing counters shared across stores.",
+        "commonMistake": "Thinking failover is just a database-internal problem. When other systems (Redis, Elasticsearch) reference database primary keys, discarding unreplicated writes creates inconsistencies across the entire stack."
+      }
+    },
+    {
+      "id": "ch5-s12",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "failover"
+      ],
+      "prompt": {
+        "context": "During a network partition, both nodes in your leader-based replicated database believe they are the leader and accept writes independently. This is called split brain.",
+        "question": "What is the standard safety mechanism to prevent split brain from causing data loss?"
+      },
+      "options": [
+        {
+          "id": "ch5-s12-o1",
+          "label": "STONITH \u2014 force-shutdown one of the nodes",
+          "description": "Shoot The Other Node In The Head: a fencing mechanism that shuts down one node when two leaders are detected"
+        },
+        {
+          "id": "ch5-s12-o2",
+          "label": "Merge writes from both leaders",
+          "description": "After the partition heals, reconcile all writes from both leaders"
+        },
+        {
+          "id": "ch5-s12-o3",
+          "label": "Accept writes on both but use LWW to resolve",
+          "description": "Last-write-wins based on timestamps picks the survivor"
+        }
+      ],
+      "correctOptionId": "ch5-s12-o1",
+      "explanation": {
+        "reasoning": "Fencing (STONITH) is the standard safety mechanism: when two leaders are detected, one is forcefully shut down. This prevents both from accepting conflicting writes that would be difficult or impossible to reconcile. Without this, data is likely to be lost or corrupted.",
+        "tradeoffs": "STONITH must be carefully designed \u2014 if the mechanism is buggy, you can end up with both nodes shut down, causing a full outage. Merging writes from two leaders is the multi-leader approach but requires proper conflict resolution infrastructure that single-leader setups don't have.",
+        "keyTakeaway": "Split brain in single-leader replication is resolved by fencing (STONITH): forcefully shutting down one node to prevent conflicting writes.",
+        "commonMistake": "Underestimating split brain \u2014 it's not just about duplicate work, it causes unrecoverable data divergence in systems not designed for multi-leader conflict resolution."
+      }
+    },
+    {
+      "id": "ch5-s13",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "failover"
+      ],
+      "prompt": {
+        "context": "During automatic failover, your system must decide how long to wait before declaring the leader dead. Current timeout: 30 seconds. The team is debating:\n\n- Engineer A: \"Set it to 5 seconds for faster recovery\"\n- Engineer B: \"Keep it at 30 seconds or even increase it\"\n\nThe system is currently under heavy load with occasional network glitches.",
+        "question": "What is the risk of a short failover timeout during high load?"
+      },
+      "options": [
+        {
+          "id": "ch5-s13-o1",
+          "label": "Unnecessary failovers that worsen the overload",
+          "description": "Load spikes or network glitches trigger false failovers, adding more stress to an already struggling system"
+        },
+        {
+          "id": "ch5-s13-o2",
+          "label": "Data loss from too-frequent leader switches",
+          "description": "Each failover loses some unreplicated writes"
+        },
+        {
+          "id": "ch5-s13-o3",
+          "label": "No significant risk \u2014 faster failover is always better",
+          "description": "Quick detection means quick recovery"
+        }
+      ],
+      "correctOptionId": "ch5-s13-o1",
+      "explanation": {
+        "reasoning": "A short timeout means temporary load spikes or network glitches can trigger unnecessary failovers. Failover itself consumes resources (leader election, client reconfiguration, follower catch-up). Under heavy load, this cascading effect makes the situation worse, not better.",
+        "tradeoffs": "A longer timeout means slower recovery when the leader genuinely fails. But an unnecessarily triggered failover during high load can cascade into a full outage. The right timeout depends on normal response times, network characteristics, and the cost of false positives vs. slow recovery.",
+        "keyTakeaway": "Failover timeouts are a trade-off: too short causes unnecessary failovers that compound existing problems; too long delays recovery from real failures.",
+        "commonMistake": "Assuming faster detection is always better. In a system already under stress, an unnecessary failover is likely to make the situation worse."
+      }
+    },
+    {
+      "id": "ch5-s14",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "failover"
+      ],
+      "prompt": {
+        "context": "A follower in your leader-based replicated database crashes due to a hardware fault. After 2 hours, it is repaired and comes back online. It was receiving replication data up until the moment of the crash.",
+        "question": "How does the follower recover without a full re-sync?"
+      },
+      "options": [
+        {
+          "id": "ch5-s14-o1",
+          "label": "It reconnects to the leader and requests all changes since its last processed log position",
+          "description": "The follower knows its last transaction from the local replication log and catches up from there"
+        },
+        {
+          "id": "ch5-s14-o2",
+          "label": "It takes a fresh snapshot from the leader and rebuilds from scratch",
+          "description": "The safest approach is a full copy"
+        },
+        {
+          "id": "ch5-s14-o3",
+          "label": "It is automatically removed from the cluster and a new follower must be provisioned",
+          "description": "Crashed followers cannot rejoin the cluster"
+        }
+      ],
+      "correctOptionId": "ch5-s14-o1",
+      "explanation": {
+        "reasoning": "Each follower maintains a log of data changes received from the leader and knows the last transaction it successfully processed. On recovery, it connects to the leader and requests all changes since that position. Once it processes this backlog, it's caught up and can resume normal operation. This is much simpler and faster than leader failover.",
+        "tradeoffs": "If the follower was down for a very long time, the leader may have purged the needed log entries \u2014 then a full re-sync from a snapshot is required. But for typical outages (minutes to hours), catch-up from the log position is sufficient and fast.",
+        "keyTakeaway": "Follower recovery is simple: reconnect and catch up from the last known log position. This is far less dangerous than leader failover because there's no data loss risk or split-brain concern.",
+        "commonMistake": "Treating follower failure with the same urgency as leader failure. Follower recovery is a non-event \u2014 the follower just catches up. Leader failure is the complex, dangerous case."
+      }
+    },
+    {
+      "id": "ch5-s15",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "failover"
+      ],
+      "prompt": {
+        "context": "Your team has experienced several incidents with automatic failover:\n- False-positive leader detection during a load spike caused an unnecessary failover\n- A split-brain event corrupted data for 45 minutes\n- An async follower was promoted, losing 30 seconds of confirmed writes\n\nThe on-call engineer proposes switching to manual failover.",
+        "question": "Why might manual failover be preferable despite slower recovery?"
+      },
+      "options": [
+        {
+          "id": "ch5-s15-o1",
+          "label": "Humans can verify the situation before acting, avoiding cascading failures from automation mistakes",
+          "description": "A human can confirm the leader is truly dead and coordinate the transition carefully"
+        },
+        {
+          "id": "ch5-s15-o2",
+          "label": "Manual failover is faster because humans can skip unnecessary validation checks",
+          "description": "Automated systems waste time on health checks that humans can bypass"
+        },
+        {
+          "id": "ch5-s15-o3",
+          "label": "Manual failover avoids the need for monitoring infrastructure",
+          "description": "With manual failover, you don't need timeout-based leader detection"
+        }
+      ],
+      "correctOptionId": "ch5-s15-o1",
+      "explanation": {
+        "reasoning": "Automatic failover can cause more damage than the original failure: false positives trigger unnecessary failovers under load, split brain from racing leader elections, and data loss from promoting under-replicated followers. Some operations teams deliberately choose manual failover because a human can assess the full situation, verify the leader is genuinely dead, and coordinate the transition. The slower recovery is accepted as the cost of avoiding automation-caused disasters.",
+        "tradeoffs": "Manual failover means longer downtime when the leader genuinely fails. The choice depends on the cost of downtime vs. the cost of automation-caused incidents. For many systems, a few minutes of read-only operation is far less damaging than data corruption from a botched automatic failover.",
+        "keyTakeaway": "Some teams prefer manual failover because the risks of automated failover (false positives, split brain, data loss) can be worse than the downtime of waiting for human intervention.",
+        "commonMistake": "Assuming automatic failover is always superior. The history of failover incidents at major companies (GitHub, etc.) shows that automated failover can amplify problems rather than fix them."
+      }
+    },
+    {
+      "id": "ch5-s16",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-logs"
+      ],
+      "prompt": {
+        "context": "Your MySQL database uses statement-based replication, forwarding every INSERT, UPDATE, DELETE statement to followers. A developer writes:\n\n```sql\nUPDATE users SET last_login = NOW() WHERE id = 42;\nINSERT INTO audit_log (user_id, token) VALUES (42, RAND());\n```",
+        "question": "Why might these statements produce different results on the leader and followers?"
+      },
+      "options": [
+        {
+          "id": "ch5-s16-o1",
+          "label": "NOW() and RAND() are nondeterministic",
+          "description": "Each replica evaluates these functions independently, getting different values"
+        },
+        {
+          "id": "ch5-s16-o2",
+          "label": "The statements arrive out of order",
+          "description": "Network delays cause followers to execute them in wrong order"
+        },
+        {
+          "id": "ch5-s16-o3",
+          "label": "The followers lack the users table",
+          "description": "Schema differences between leader and follower"
+        }
+      ],
+      "correctOptionId": "ch5-s16-o1",
+      "explanation": {
+        "reasoning": "Statement-based replication forwards the SQL text. Functions like NOW() and RAND() are nondeterministic \u2014 each replica evaluates them independently at different times, producing different values. The leader might record last_login = '2024-01-15 10:00:00.123' but a follower might get '10:00:00.456'.",
+        "tradeoffs": "The leader can replace nondeterministic function calls with fixed return values in the log, but there are many edge cases: triggers, stored procedures, autoincrementing columns with concurrent transactions. This is why row-based (logical) replication is generally preferred.",
+        "keyTakeaway": "Statement-based replication breaks with nondeterministic functions (NOW, RAND), side effects (triggers), and concurrent transactions with autoincrement or order-dependent operations.",
+        "commonMistake": "Thinking statement-based replication is safe because the SQL is the same. The determinism of execution context matters, not just the statement text."
+      }
+    },
+    {
+      "id": "ch5-s17",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-logs"
+      ],
+      "prompt": {
+        "context": "Your database uses statement-based replication. Two concurrent transactions are inserting rows into a table with an autoincrementing primary key:\n\nTransaction A: INSERT INTO orders (item) VALUES ('widget');\nTransaction B: INSERT INTO orders (item) VALUES ('gadget');\n\nOn the leader, Transaction A gets id=100, Transaction B gets id=101.",
+        "question": "What can go wrong on the followers?"
+      },
+      "options": [
+        {
+          "id": "ch5-s17-o1",
+          "label": "Followers may execute transactions in a different order, assigning swapped autoincrement values",
+          "description": "If B commits before A on a follower, 'gadget' gets id=100 and 'widget' gets id=101"
+        },
+        {
+          "id": "ch5-s17-o2",
+          "label": "The autoincrement values are embedded in the statement, so followers will match",
+          "description": "Statement-based replication includes the assigned IDs"
+        },
+        {
+          "id": "ch5-s17-o3",
+          "label": "Both transactions will fail on the followers due to a primary key conflict",
+          "description": "Concurrent inserts always conflict during replication"
+        }
+      ],
+      "correctOptionId": "ch5-s17-o1",
+      "explanation": {
+        "reasoning": "Statement-based replication forwards the SQL text, not the resulting data. If concurrent transactions with autoincrementing inserts are replayed in a different order on a follower, the autoincrement counter assigns different IDs to each row. The leader has widget=100, gadget=101, but a follower might have gadget=100, widget=101. This creates silent data divergence.",
+        "tradeoffs": "This is one of several reasons statement-based replication fell out of favor. The problem extends to any operation that depends on execution order: triggers, sequences, user-defined functions. Logical (row-based) replication avoids this entirely by shipping the actual row values including the assigned IDs.",
+        "keyTakeaway": "Statement-based replication fails with concurrent transactions that depend on execution order \u2014 autoincrementing IDs, sequences, and triggers can all produce different results on replicas.",
+        "commonMistake": "Assuming that replaying the same SQL statements produces the same result. It doesn't when the result depends on execution order, timing, or non-deterministic functions."
+      }
+    },
+    {
+      "id": "ch5-s18",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-logs"
+      ],
+      "prompt": {
+        "context": "You need to perform a zero-downtime rolling upgrade of your PostgreSQL database from version 15 to 16. Your plan:\n1. Upgrade followers first (one at a time)\n2. Failover to make an upgraded follower the new leader\n3. Upgrade the old leader as a follower\n\nYou use WAL (Write-Ahead Log) shipping for replication.",
+        "question": "What problem will you likely encounter?"
+      },
+      "options": [
+        {
+          "id": "ch5-s18-o1",
+          "label": "WAL format is coupled to storage engine version",
+          "description": "The WAL describes low-level byte changes in disk blocks \u2014 different versions may use incompatible formats"
+        },
+        {
+          "id": "ch5-s18-o2",
+          "label": "The upgraded follower can't accept writes",
+          "description": "Newer versions can only be followers, not leaders"
+        },
+        {
+          "id": "ch5-s18-o3",
+          "label": "No problem \u2014 WAL shipping supports version mixing",
+          "description": "WAL is a standard format that doesn't change between versions"
+        }
+      ],
+      "correctOptionId": "ch5-s18-o1",
+      "explanation": {
+        "reasoning": "WAL shipping sends the physical byte-level log \u2014 details of which bytes changed in which disk blocks. This is tightly coupled to the storage engine's internal format. If version 16 changes the storage format, a v16 follower can't interpret the v15 leader's WAL, making rolling upgrades impossible without downtime.",
+        "tradeoffs": "Logical (row-based) replication decouples the replication log from the storage engine, allowing leader and followers to run different versions or even different storage engines. This is a key operational advantage over WAL shipping.",
+        "keyTakeaway": "WAL shipping is tightly coupled to the storage engine version, preventing zero-downtime rolling upgrades when the WAL format changes between versions.",
+        "commonMistake": "Assuming all replication methods support mixed-version clusters. WAL shipping is the most restrictive because it operates at the physical byte level."
+      }
+    },
+    {
+      "id": "ch5-s19",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-logs"
+      ],
+      "prompt": {
+        "context": "You want to feed your database changes into an external system \u2014 a data warehouse for analytics and an Elasticsearch index for search. You need a replication log format that external applications can easily parse and that stays compatible across database version upgrades.",
+        "question": "Which replication log format is best suited for this?"
+      },
+      "options": [
+        {
+          "id": "ch5-s19-o1",
+          "label": "Statement-based log",
+          "description": "Forward the SQL statements"
+        },
+        {
+          "id": "ch5-s19-o2",
+          "label": "WAL (physical) log",
+          "description": "Forward the raw byte-level disk changes"
+        },
+        {
+          "id": "ch5-s19-o3",
+          "label": "Logical (row-based) log",
+          "description": "Forward row-level changes (inserts, updates, deletes) decoupled from the storage engine"
+        }
+      ],
+      "correctOptionId": "ch5-s19-o3",
+      "explanation": {
+        "reasoning": "Logical (row-based) logs describe changes at the row level \u2014 inserted column values, deleted row identifiers, updated columns. This format is decoupled from the storage engine, making it backward-compatible across versions and easy for external applications to parse. This technique is called Change Data Capture (CDC).",
+        "tradeoffs": "WAL logs describe low-level byte changes that are meaningless to external systems. Statement-based logs have nondeterminism issues. Logical logs are the foundation of CDC pipelines feeding warehouses, search indexes, and caches.",
+        "keyTakeaway": "Logical (row-based) replication logs are the best format for Change Data Capture \u2014 they're decoupled from the storage engine and easy for external systems to consume.",
+        "commonMistake": "Trying to use WAL logs for CDC. WAL describes disk blocks, not logical row changes \u2014 it's not parseable by external applications."
+      }
+    },
+    {
+      "id": "ch5-s20",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "replication-logs"
+      ],
+      "prompt": {
+        "context": "You need to replicate only a subset of your data from Oracle to a PostgreSQL analytics database, with custom transformation logic during replication.",
+        "question": "Which replication approach provides the flexibility needed?"
+      },
+      "options": [
+        {
+          "id": "ch5-s20-o1",
+          "label": "WAL shipping",
+          "description": "Ship the physical write-ahead log from Oracle"
+        },
+        {
+          "id": "ch5-s20-o2",
+          "label": "Trigger-based replication",
+          "description": "Use database triggers to capture changes into a separate table, then apply custom logic to replicate selectively"
+        },
+        {
+          "id": "ch5-s20-o3",
+          "label": "Statement-based replication",
+          "description": "Forward SQL statements from Oracle to PostgreSQL"
+        }
+      ],
+      "correctOptionId": "ch5-s20-o2",
+      "explanation": {
+        "reasoning": "Trigger-based replication runs custom application code on each write transaction. Triggers can selectively log changes to a separate table, where an external process applies transformation logic and replicates to a different database system. Tools like Oracle GoldenGate, Databus for Oracle, and Bucardo for Postgres work this way.",
+        "tradeoffs": "Trigger-based replication has higher overhead and is more prone to bugs than built-in replication methods. WAL shipping is PostgreSQL/Oracle-specific and can't cross database systems. Statement-based doesn't work across different SQL dialects.",
+        "keyTakeaway": "Trigger-based replication provides maximum flexibility \u2014 subset selection, cross-database replication, and custom transformation \u2014 at the cost of higher overhead and complexity.",
+        "commonMistake": "Using trigger-based replication when built-in replication would suffice. It should only be used when you need flexibility that the database's native replication can't provide."
+      }
+    },
+    {
+      "id": "ch5-s21",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "replication-lag"
+      ],
+      "prompt": {
+        "context": "Your database documentation states it provides 'eventual consistency.' A new team member asks: 'So if I write data, how long until all replicas have it? Is there an SLA?'",
+        "question": "What does eventual consistency actually guarantee?"
+      },
+      "options": [
+        {
+          "id": "ch5-s21-o1",
+          "label": "If you stop writing and wait long enough, all replicas will converge \u2014 but there is no time bound",
+          "description": "The guarantee is deliberately vague: convergence happens 'eventually' with no specified deadline"
+        },
+        {
+          "id": "ch5-s21-o2",
+          "label": "All replicas will converge within a configurable time window (e.g., 5 seconds)",
+          "description": "Eventual consistency provides a bounded staleness guarantee"
+        },
+        {
+          "id": "ch5-s21-o3",
+          "label": "Reads will return the correct value after one full replication cycle",
+          "description": "Once the replication cycle completes, all replicas are consistent"
+        }
+      ],
+      "correctOptionId": "ch5-s21-o1",
+      "explanation": {
+        "reasoning": "Eventual consistency is deliberately vague \u2014 it only means that if you stop writing and wait an unspecified amount of time, all replicas will converge to the same value. There is no bound on WHEN this happens. Under normal conditions, lag is typically sub-second, but during failures, network partitions, or high load, it can grow to seconds, minutes, or longer. The term is intentionally weak.",
+        "tradeoffs": "The vagueness is the point \u2014 it gives the system maximum flexibility to prioritize availability and performance. Stronger guarantees (read-after-write, monotonic reads, consistent prefix) provide specific, actionable consistency properties without requiring full strong consistency.",
+        "keyTakeaway": "Eventual consistency only guarantees convergence if writes stop \u2014 with no time bound. It's a deliberately weak guarantee that says almost nothing about behavior during active operation.",
+        "commonMistake": "Treating 'eventual consistency' as 'consistency with a small delay.' The delay is unbounded and can be arbitrarily long during adverse conditions."
+      }
+    },
+    {
+      "id": "ch5-s22",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "replication-lag"
+      ],
+      "prompt": {
+        "context": "An architect proposes adding 10 read replicas with synchronous replication to scale read throughput. Currently the system handles 1,000 writes/sec and 50,000 reads/sec.\n\nWith synchronous replication, every write must be confirmed by all 10 replicas before succeeding.",
+        "question": "Why does synchronous replication defeat the purpose of read-scaling?"
+      },
+      "options": [
+        {
+          "id": "ch5-s22-o1",
+          "label": "Every write waits for 10 confirmations \u2014 adding replicas increases write latency and reduces write throughput",
+          "description": "Write performance degrades linearly with the number of synchronous replicas"
+        },
+        {
+          "id": "ch5-s22-o2",
+          "label": "Synchronous replicas cannot serve reads while they're replicating",
+          "description": "Replicas are locked during replication and can't respond to queries"
+        },
+        {
+          "id": "ch5-s22-o3",
+          "label": "Synchronous replication requires 10x the storage capacity",
+          "description": "The storage overhead makes it impractical"
+        }
+      ],
+      "correctOptionId": "ch5-s22-o1",
+      "explanation": {
+        "reasoning": "With synchronous replication to ALL replicas, each write must wait for all 10 replicas to acknowledge. Adding more replicas increases the probability that at least one is slow (GC pause, network delay), further increasing write latency. The system becomes write-bottlenecked. Read-scaling with replicas only works when replication is asynchronous \u2014 followers process changes at their own pace without blocking writes.",
+        "tradeoffs": "The trade-off is clear: async replication allows read scaling but introduces replication lag (stale reads). Sync replication ensures fresh reads but makes writes slower with each added replica. Read-scaling inherently requires accepting some staleness.",
+        "keyTakeaway": "Read-scaling with replicas only works with asynchronous replication. Synchronous replication turns every added replica into a write-latency penalty.",
+        "commonMistake": "Thinking you can have both perfectly fresh reads on all replicas AND high write throughput. Read-scaling fundamentally requires accepting eventual consistency."
+      }
+    },
+    {
+      "id": "ch5-s23",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-lag"
+      ],
+      "prompt": {
+        "context": "Your team debates how to handle replication lag anomalies:\n\nEngineer A: 'We should implement read-after-write and monotonic reads at the application level \u2014 track timestamps, pin users to replicas, etc.'\n\nEngineer B: 'These are problems that transactions should solve. The database should handle this, not our application code.'",
+        "question": "What perspective does DDIA take on this debate?"
+      },
+      "options": [
+        {
+          "id": "ch5-s23-o1",
+          "label": "Transactions are the right abstraction, but many distributed databases abandoned them \u2014 so app-level workarounds are a necessary but unfortunate reality",
+          "description": "The book argues transactions should handle this but acknowledges the current state of affairs"
+        },
+        {
+          "id": "ch5-s23-o2",
+          "label": "Application-level workarounds are always simpler and preferred over transactions",
+          "description": "Transactions add too much overhead for this problem"
+        },
+        {
+          "id": "ch5-s23-o3",
+          "label": "Only distributed transactions across all replicas can solve replication lag",
+          "description": "Two-phase commit is required for consistency"
+        }
+      ],
+      "correctOptionId": "ch5-s23-o1",
+      "explanation": {
+        "reasoning": "Kleppmann argues that pushing replication-lag workarounds to application developers is error-prone and fragile. Transactions exist precisely to provide these guarantees as a database-level abstraction. However, many distributed databases (especially 'new generation' NoSQL) abandoned transactions claiming they're too expensive. The book argues this was premature \u2014 better database-level abstractions should replace ad-hoc application-level workarounds.",
+        "tradeoffs": "Application-level workarounds (timestamp tracking, replica pinning) are fragile, duplicated across services, and easy to get wrong. Transactions provide clean guarantees but may have performance costs. The ideal is databases that provide appropriate consistency guarantees (like read-after-write) without requiring full serializability.",
+        "keyTakeaway": "Application-level replication lag workarounds are a necessary evil. The book argues that databases should provide these guarantees through better transaction support, not punt them to application developers.",
+        "commonMistake": "Accepting that application-level consistency workarounds are the natural state of things. They represent a failure of database abstractions, not a best practice."
+      }
+    },
+    {
+      "id": "ch5-s24",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "read-after-write"
+      ],
+      "prompt": {
+        "context": "A user updates their profile picture on your social network. The write goes to the leader. They immediately refresh the page, which reads from an async follower that hasn't received the update yet.\n\nThe user sees their old profile picture and thinks the update was lost.",
+        "question": "What consistency guarantee would prevent this anomaly?"
+      },
+      "options": [
+        {
+          "id": "ch5-s24-o1",
+          "label": "Read-after-write consistency",
+          "description": "Users always see their own submitted data, even if other users' updates are delayed"
+        },
+        {
+          "id": "ch5-s24-o2",
+          "label": "Monotonic reads",
+          "description": "Users never see time go backward"
+        },
+        {
+          "id": "ch5-s24-o3",
+          "label": "Strong consistency",
+          "description": "All reads see the most recent write globally"
+        }
+      ],
+      "correctOptionId": "ch5-s24-o1",
+      "explanation": {
+        "reasoning": "Read-after-write consistency (also called read-your-writes) guarantees that after a user submits data, they will always see their own updates. It makes no promises about seeing OTHER users' updates immediately. This targeted guarantee is much cheaper than full strong consistency.",
+        "tradeoffs": "Strong consistency would also solve this but is much more expensive \u2014 it requires synchronous replication or consensus for every read. Read-after-write only needs special handling for the writing user's subsequent reads.",
+        "keyTakeaway": "Read-after-write consistency guarantees users see their own writes. It's a targeted, practical guarantee that doesn't require expensive global consistency.",
+        "commonMistake": "Confusing read-after-write with strong consistency. Read-after-write only applies to the user's OWN data \u2014 other users may still see stale data."
+      }
+    },
+    {
+      "id": "ch5-s25",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "read-after-write"
+      ],
+      "prompt": {
+        "context": "You're implementing read-after-write consistency for a social network. Users can only edit their own profile.\n\nOptions for implementation:\n- A: Always read the user's own profile from the leader; read other profiles from followers\n- B: Track the timestamp of the user's last write; for 1 minute after any write, read all data from the leader\n- C: Embed the last-write timestamp in the client; route reads to replicas that are at least that up-to-date",
+        "question": "Which approach works best for this specific use case where only the profile owner can edit?"
+      },
+      "options": [
+        {
+          "id": "ch5-s25-o1",
+          "label": "Read own profile from leader, others from followers",
+          "description": "Simple rule: if it's your data, read from leader"
+        },
+        {
+          "id": "ch5-s25-o2",
+          "label": "Time-window: read all from leader for 1 minute after any write",
+          "description": "Broad rule: everything goes to leader briefly after a write"
+        },
+        {
+          "id": "ch5-s25-o3",
+          "label": "Client-embedded timestamp routing",
+          "description": "Client tracks its last write and requests a sufficiently up-to-date replica"
+        }
+      ],
+      "correctOptionId": "ch5-s25-o1",
+      "explanation": {
+        "reasoning": "Since only the profile owner can edit their profile, there's a simple deterministic rule: read your own profile from the leader, everyone else's from followers. No timestamp tracking needed, no additional load on the leader for non-owned reads.",
+        "tradeoffs": "Option B puts unnecessary load on the leader \u2014 ALL reads go to the leader for 1 minute after ANY write, even reads of other users' profiles. Option C adds client-side complexity. When you know which data is user-editable, the simple routing rule is best.",
+        "keyTakeaway": "When you can deterministically identify which data a user might have modified, route reads of that data to the leader and everything else to followers.",
+        "commonMistake": "Over-engineering read-after-write with timestamp tracking when a simple ownership-based routing rule suffices for the use case."
+      }
+    },
+    {
+      "id": "ch5-s26",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "read-after-write"
+      ],
+      "prompt": {
+        "context": "A user edits their profile on their laptop (write goes to the leader). They immediately check it on their phone, which reads from an async follower. The phone shows the old profile.\n\nYour current read-after-write implementation tracks the last-write timestamp in a cookie on the device. But the phone has no knowledge of the laptop's write.",
+        "question": "What makes cross-device read-after-write consistency harder?"
+      },
+      "options": [
+        {
+          "id": "ch5-s26-o1",
+          "label": "Device-local state (cookies/timestamps) can't be shared \u2014 metadata must be centralized",
+          "description": "The phone doesn't know about the laptop's write timestamp, so client-side tracking breaks"
+        },
+        {
+          "id": "ch5-s26-o2",
+          "label": "Different devices use different network protocols for reads",
+          "description": "Mobile and desktop clients connect differently to the database"
+        },
+        {
+          "id": "ch5-s26-o3",
+          "label": "Mobile devices have higher latency, making freshness checks impractical",
+          "description": "Network speed differences cause the inconsistency"
+        }
+      ],
+      "correctOptionId": "ch5-s26-o1",
+      "explanation": {
+        "reasoning": "Cross-device read-after-write is harder because: (1) client-side timestamps/state can't be shared between devices \u2014 you need centralized metadata about each user's last write; (2) if replicas are distributed across datacenters, different devices may connect to different DCs, requiring centralized routing to ensure the phone reads from a replica that's caught up with the laptop's write.",
+        "tradeoffs": "Centralizing last-write metadata adds a dependency on a central service. It also means read-after-write for cross-device scenarios requires knowing which user is making the request and looking up their last write across all devices \u2014 more infrastructure than single-device read-after-write.",
+        "keyTakeaway": "Cross-device read-after-write requires centralized metadata about each user's last write, since client-side state (cookies, local storage) can't be shared between devices.",
+        "commonMistake": "Implementing read-after-write with client-side timestamps and assuming it works across devices. Each device has its own state \u2014 the server must track writes per user, not per device."
+      }
+    },
+    {
+      "id": "ch5-s27",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "read-after-write"
+      ],
+      "prompt": {
+        "context": "In your social network, users can edit posts, comments, settings, and many other types of data. The simple rule 'read your own data from the leader' would route most traffic to the leader since users can edit almost anything they see.\n\nYou need a more targeted approach that avoids overloading the leader.",
+        "question": "Which technique provides read-after-write without overloading the leader?"
+      },
+      "options": [
+        {
+          "id": "ch5-s27-o1",
+          "label": "Client tracks its last write timestamp and requests are routed to replicas at least that up-to-date",
+          "description": "Include the timestamp with each read; route to a replica that has processed changes up to that point"
+        },
+        {
+          "id": "ch5-s27-o2",
+          "label": "Send all reads to the leader for 60 seconds after any write, then switch back to followers",
+          "description": "A broad time window ensures freshness"
+        },
+        {
+          "id": "ch5-s27-o3",
+          "label": "Cache all writes locally on the client for 60 seconds",
+          "description": "Client-side caching ensures the user sees their own writes"
+        }
+      ],
+      "correctOptionId": "ch5-s27-o1",
+      "explanation": {
+        "reasoning": "The client records the timestamp of its most recent write. On each subsequent read, the timestamp is included. The system routes the read to a replica that has processed all changes up to at least that timestamp. If no follower is sufficiently caught up, the read goes to the leader or waits briefly. This is surgical \u2014 only reads right after writes hit the leader.",
+        "tradeoffs": "The time-window approach (option B) overloads the leader with ALL reads for 60 seconds, even reads unrelated to the write. Client-side caching works for the writing device but doesn't help cross-device scenarios. Timestamp-based routing is the most efficient: it only uses the leader when necessary.",
+        "keyTakeaway": "Timestamp-based routing for read-after-write: the client remembers its last write timestamp and reads are routed to sufficiently up-to-date replicas, minimizing unnecessary leader load.",
+        "commonMistake": "Using a blanket time window ('all reads to leader for N seconds') which sends far more traffic to the leader than necessary. Timestamp-based routing is more precise."
+      }
+    },
+    {
+      "id": "ch5-s28",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "monotonic-reads"
+      ],
+      "prompt": {
+        "context": "A user refreshes a comment thread multiple times. Each request is load-balanced to a random follower replica.\n\n- First request \u2192 Follower A (low lag): sees 15 comments, including a new comment by User X\n- Second request \u2192 Follower B (high lag): sees only 14 comments \u2014 User X's comment has disappeared\n\nThe user sees a comment appear and then vanish.",
+        "question": "How do you prevent this 'time travel' anomaly?"
+      },
+      "options": [
+        {
+          "id": "ch5-s28-o1",
+          "label": "Route each user to the same replica using a hash of their user ID",
+          "description": "Consistent routing ensures monotonically progressing views"
+        },
+        {
+          "id": "ch5-s28-o2",
+          "label": "Add a cache layer in front of all replicas",
+          "description": "Cache ensures consistent responses"
+        },
+        {
+          "id": "ch5-s28-o3",
+          "label": "Only use synchronous replication",
+          "description": "Ensure all replicas have the same data at all times"
+        }
+      ],
+      "correctOptionId": "ch5-s28-o1",
+      "explanation": {
+        "reasoning": "Monotonic reads are achieved by ensuring each user always reads from the same replica. Using a hash of the user ID to select a replica means the user's view of the data can only move forward \u2014 they'll never see newer data and then older data. Different users can read from different replicas.",
+        "tradeoffs": "If the assigned replica fails, the user's reads must be rerouted to another replica, temporarily breaking the monotonic guarantee. Synchronous replication would work but is far more expensive. A cache can help but introduces its own consistency challenges.",
+        "keyTakeaway": "Monotonic reads are achieved by pinning each user to a specific replica (e.g., via user ID hash), so their view of the data only moves forward in time.",
+        "commonMistake": "Random load balancing across replicas causes the 'time travel' anomaly. The fix is deterministic per-user routing, not making all replicas synchronous."
+      }
+    },
+    {
+      "id": "ch5-s29",
+      "type": "decision",
+      "difficulty": 2,
+      "concepts": [
+        "monotonic-reads"
+      ],
+      "prompt": {
+        "context": "A colleague claims: 'We implemented monotonic reads, so our users always see up-to-date data \u2014 basically the same as strong consistency.'\n\nYour user ID hash-based replica pinning ensures each user always reads from the same replica.",
+        "question": "Why is monotonic reads weaker than strong consistency?"
+      },
+      "options": [
+        {
+          "id": "ch5-s29-o1",
+          "label": "Monotonic reads only prevents going backward \u2014 you may consistently read stale data, just never older than before",
+          "description": "Your view moves forward but may be far behind the latest write"
+        },
+        {
+          "id": "ch5-s29-o2",
+          "label": "Monotonic reads only works for read-heavy workloads, not write-heavy",
+          "description": "Write-heavy workloads break the guarantee"
+        },
+        {
+          "id": "ch5-s29-o3",
+          "label": "Monotonic reads requires more replicas than strong consistency",
+          "description": "You need more hardware to maintain the guarantee"
+        }
+      ],
+      "correctOptionId": "ch5-s29-o1",
+      "explanation": {
+        "reasoning": "Monotonic reads guarantees that your view of the data only moves forward \u2014 you'll never see newer data and then older data. But it does NOT guarantee you see the LATEST data. A user pinned to a slow replica might consistently see data that's 10 seconds behind. They just won't see it go backward. Strong consistency guarantees every read returns the most recent write \u2014 a much stronger (and more expensive) property.",
+        "tradeoffs": "Monotonic reads is a practical middle ground: it prevents the confusing 'time travel' anomaly at low cost (just hash-based routing). Strong consistency requires synchronous replication or consensus protocols, which are significantly more expensive. For most applications, preventing backward movement is sufficient.",
+        "keyTakeaway": "Monotonic reads prevents time travel (seeing older data after newer) but doesn't guarantee freshness. It's strictly weaker than strong consistency \u2014 you can be consistently stale.",
+        "commonMistake": "Equating 'never going backward' with 'always up-to-date.' Monotonic reads ensures your view progresses monotonically, not that it's current."
+      }
+    },
+    {
+      "id": "ch5-s30",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "monotonic-reads"
+      ],
+      "prompt": {
+        "context": "You implement monotonic reads by hashing user IDs to pin each user to a specific replica. User 42 is pinned to Replica C. Replica C fails.\n\nUser 42's next read must be rerouted to Replica A, which is further behind in replication than Replica C was.",
+        "question": "What happens to user 42's monotonic reads guarantee?"
+      },
+      "options": [
+        {
+          "id": "ch5-s30-o1",
+          "label": "The guarantee is temporarily broken \u2014 the user may see older data than they saw from Replica C",
+          "description": "Replica A is behind where Replica C was, so the user's view jumps backward"
+        },
+        {
+          "id": "ch5-s30-o2",
+          "label": "The system blocks reads for user 42 until Replica A catches up to Replica C's position",
+          "description": "Reads are paused to maintain the guarantee"
+        },
+        {
+          "id": "ch5-s30-o3",
+          "label": "Another replica seamlessly takes over with no visible effect",
+          "description": "All replicas have identical data, so the switch is transparent"
+        }
+      ],
+      "correctOptionId": "ch5-s30-o1",
+      "explanation": {
+        "reasoning": "When the pinned replica fails, reads are rerouted to another replica that may be at a different replication position. If Replica A is behind Replica C, user 42 may see data that's older than what they last saw \u2014 violating monotonic reads. This is an inherent limitation of the hash-based pinning approach: it depends on replica availability.",
+        "tradeoffs": "You could block reads until the new replica catches up (option B), but this reduces availability \u2014 the user's reads are unavailable during failover. Most systems accept the temporary violation as preferable to blocking. The guarantee is restored once the user is consistently pinned to the new replica.",
+        "keyTakeaway": "Hash-based replica pinning for monotonic reads breaks when the pinned replica fails \u2014 the user may temporarily see stale data on the new replica. This is accepted as a trade-off for availability.",
+        "commonMistake": "Assuming hash-based replica pinning provides an absolute guarantee. It's a best-effort mechanism that breaks during replica failures."
+      }
+    },
+    {
+      "id": "ch5-s31",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "consistent-prefix"
+      ],
+      "prompt": {
+        "context": "In a partitioned database with async replication, a conversation occurs:\n\n1. Mr. Poons asks: \"How far into the future can you see?\" (written to partition A)\n2. Mrs. Cake replies: \"About ten seconds\" (written to partition B)\n\nAn observer reading from both partitions sees Mrs. Cake's reply BEFORE Mr. Poons's question, because partition B's follower is ahead of partition A's follower.",
+        "question": "Which consistency guarantee is violated?"
+      },
+      "options": [
+        {
+          "id": "ch5-s31-o1",
+          "label": "Consistent prefix reads",
+          "description": "Causally related writes are observed out of order"
+        },
+        {
+          "id": "ch5-s31-o2",
+          "label": "Read-after-write consistency",
+          "description": "Users don't see their own writes"
+        },
+        {
+          "id": "ch5-s31-o3",
+          "label": "Monotonic reads",
+          "description": "The same user sees data go backward in time"
+        }
+      ],
+      "correctOptionId": "ch5-s31-o1",
+      "explanation": {
+        "reasoning": "Consistent prefix reads guarantees that if writes happen in a certain causal order, readers see them in that order. Here, the reply causally depends on the question, but the observer sees the reply first because the two partitions have different replication lag. This violates causality.",
+        "tradeoffs": "This is particularly problematic in partitioned databases where different partitions replicate independently with no global ordering. One solution is writing causally related data to the same partition. Another is using algorithms that track causal dependencies explicitly.",
+        "keyTakeaway": "Consistent prefix reads prevents causal violations \u2014 ensuring that if A happened before B, no observer sees B without A. Partitioned databases with independent replication are especially vulnerable.",
+        "commonMistake": "Confusing consistent prefix reads with monotonic reads. Monotonic reads prevents one USER from going backward. Consistent prefix reads prevents CAUSAL ORDER violations across any reader."
+      }
+    },
+    {
+      "id": "ch5-s32",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "consistent-prefix"
+      ],
+      "prompt": {
+        "context": "Your database is partitioned (sharded) across multiple nodes. Each partition has its own leader and its own replication stream with independent lag.\n\nA conversation thread spans two partitions: the question is stored on partition A and the reply on partition B. Partition B's replica is ahead of partition A's replica.",
+        "question": "Why are partitioned databases especially vulnerable to consistent prefix violations?"
+      },
+      "options": [
+        {
+          "id": "ch5-s32-o1",
+          "label": "Each partition replicates independently \u2014 there is no global ordering of writes across partitions",
+          "description": "Writes to different partitions have no shared timeline, so replicas can see them at different points"
+        },
+        {
+          "id": "ch5-s32-o2",
+          "label": "Partitioned databases use weaker replication protocols",
+          "description": "Sharding requires compromises in replication quality"
+        },
+        {
+          "id": "ch5-s32-o3",
+          "label": "Cross-partition queries are always slower, causing apparent ordering issues",
+          "description": "Query latency across shards creates the illusion of ordering problems"
+        }
+      ],
+      "correctOptionId": "ch5-s32-o1",
+      "explanation": {
+        "reasoning": "In a partitioned database, each partition has its own independent replication stream. There is no global ordering across partitions. An observer reading from replicas of partition A and partition B may see them at different replication positions \u2014 partition B's replica might be further ahead. Causally related writes spanning partitions can appear out of order because each partition replicates independently with different lag.",
+        "tradeoffs": "In an unpartitioned single-leader database, one replication stream provides a total ordering \u2014 consistent prefix reads is naturally maintained. Partitioning breaks this by creating independent streams. This is one of the fundamental challenges of sharded databases.",
+        "keyTakeaway": "Partitioned databases are especially vulnerable to consistent prefix violations because each partition replicates independently with no global ordering across partitions.",
+        "commonMistake": "Assuming that a quorum or replication guarantee on each partition individually provides cross-partition ordering. It doesn't \u2014 ordering only exists within a single replication stream."
+      }
+    },
+    {
+      "id": "ch5-s33",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "consistent-prefix"
+      ],
+      "prompt": {
+        "context": "Your partitioned database suffers from consistent prefix violations in conversation threads. Messages and their replies sometimes appear out of causal order to readers.\n\nYou're considering solutions:\n- A: Write causally related data to the same partition\n- B: Add synchronized clocks across all partitions\n- C: Use causal dependency tracking algorithms across partitions",
+        "question": "What is the simplest solution?"
+      },
+      "options": [
+        {
+          "id": "ch5-s33-o1",
+          "label": "Write causally related data to the same partition",
+          "description": "A single partition's replication stream preserves ordering naturally"
+        },
+        {
+          "id": "ch5-s33-o2",
+          "label": "Synchronized clocks with bounded skew",
+          "description": "NTP-synchronized clocks provide a global timeline for ordering"
+        },
+        {
+          "id": "ch5-s33-o3",
+          "label": "Causal dependency tracking across partitions",
+          "description": "Track which writes depend on which, and enforce ordering during replication"
+        }
+      ],
+      "correctOptionId": "ch5-s33-o1",
+      "explanation": {
+        "reasoning": "If causally related writes (a question and its reply) go to the same partition, they are ordered by a single replication stream. Replicas will always see them in the correct causal order. This is the simplest fix \u2014 choose partition keys so that causally related data lives together (e.g., partition by conversation_id or thread_id).",
+        "tradeoffs": "This constrains your partition key design \u2014 you may need to partition differently than what's optimal for query performance. Causal dependency tracking algorithms work across partitions but add significant complexity. Synchronized clocks (Google's TrueTime) can help but require specialized infrastructure.",
+        "keyTakeaway": "The simplest way to prevent consistent prefix violations in a partitioned database is to ensure causally related data is written to the same partition, sharing a single replication stream.",
+        "commonMistake": "Choosing partition keys purely for load balancing without considering causal relationships. If related data spans partitions, you lose causal ordering guarantees."
+      }
+    },
+    {
+      "id": "ch5-s34",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "multi-leader"
+      ],
+      "prompt": {
+        "context": "Your company has datacenters in US, EU, and Asia. With single-leader replication, all writes must cross the ocean to the US datacenter (where the leader lives), adding 100-300ms latency.\n\nYou're considering multi-leader replication: one leader per datacenter.",
+        "question": "What is the primary benefit of multi-leader in this multi-datacenter setup?"
+      },
+      "options": [
+        {
+          "id": "ch5-s34-o1",
+          "label": "Writes are processed locally, hiding inter-datacenter latency",
+          "description": "Each datacenter writes to its local leader; cross-DC replication happens asynchronously in the background"
+        },
+        {
+          "id": "ch5-s34-o2",
+          "label": "Eliminates the need for conflict resolution",
+          "description": "Each datacenter handles its own data independently"
+        },
+        {
+          "id": "ch5-s34-o3",
+          "label": "Simpler operational management",
+          "description": "Multiple leaders are easier to manage than a single leader"
+        }
+      ],
+      "correctOptionId": "ch5-s34-o1",
+      "explanation": {
+        "reasoning": "Multi-leader allows each datacenter to accept writes locally. The inter-datacenter replication happens asynchronously in the background, so users don't experience cross-ocean latency on writes. Each datacenter can also continue operating independently during network interruptions between datacenters.",
+        "tradeoffs": "The BIG downside is write conflicts \u2014 the same data can be modified in two datacenters concurrently, requiring conflict resolution. Multi-leader is NOT simpler \u2014 it's considered 'dangerous territory' because of subtle interactions with autoincrement keys, triggers, and integrity constraints.",
+        "keyTakeaway": "Multi-leader replication hides inter-datacenter latency and improves availability during DC outages, at the cost of write conflict complexity.",
+        "commonMistake": "Adopting multi-leader without accounting for conflict resolution. Many implementations handle conflicts poorly, which is why conflict avoidance (routing each record to a single 'home' datacenter) is often recommended."
+      }
+    },
+    {
+      "id": "ch5-s35",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "multi-leader"
+      ],
+      "prompt": {
+        "context": "Consider these three applications:\n\nA. A calendar app that works offline on multiple devices and syncs when online\nB. Google Docs-style real-time collaborative text editing\nC. A single-datacenter OLTP database handling web requests",
+        "question": "Which applications are essentially multi-leader replication problems?"
+      },
+      "options": [
+        {
+          "id": "ch5-s35-o1",
+          "label": "A and B only",
+          "description": "Offline apps and collaborative editing both involve multiple 'leaders' accepting writes independently"
+        },
+        {
+          "id": "ch5-s35-o2",
+          "label": "All three (A, B, and C)",
+          "description": "Any database with multiple users is a multi-leader problem"
+        },
+        {
+          "id": "ch5-s35-o3",
+          "label": "A only",
+          "description": "Only offline apps need multi-leader"
+        }
+      ],
+      "correctOptionId": "ch5-s35-o1",
+      "explanation": {
+        "reasoning": "Offline apps: each device is a 'datacenter' with a local database (leader) that syncs asynchronously \u2014 exactly multi-leader replication with extremely unreliable network. Collaborative editing: each user's local state is a replica accepting writes, asynchronously replicated to the server and other users. Single-datacenter OLTP uses single-leader \u2014 multi-leader rarely makes sense within one datacenter.",
+        "tradeoffs": "Collaborative editing can use locking (equivalent to single-leader with transactions) for strict consistency, but for real-time collaboration you want small change units (keystrokes) without locking, which brings multi-leader conflict challenges.",
+        "keyTakeaway": "Offline-capable apps and collaborative editing are fundamentally multi-leader replication problems \u2014 each device/client is an independent 'leader' that accepts writes and syncs asynchronously.",
+        "commonMistake": "Not recognizing offline apps as multi-leader. Each device maintaining a local writable database with eventual sync IS multi-leader replication \u2014 and it's notoriously hard to get right (as the history of broken calendar sync shows)."
+      }
+    },
+    {
+      "id": "ch5-s36",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "multi-leader"
+      ],
+      "prompt": {
+        "context": "In a Google Docs-style collaborative editor, two users are editing the same document simultaneously. To ensure a responsive experience, each keystroke is applied locally and immediately replicated to other collaborators \u2014 no locking, no waiting for server confirmation.",
+        "question": "Why does this approach require multi-leader conflict resolution techniques?"
+      },
+      "options": [
+        {
+          "id": "ch5-s36-o1",
+          "label": "Each client is a 'leader' accepting writes independently \u2014 simultaneous edits at the same position are concurrent conflicts",
+          "description": "Two users typing at the same spot create conflicting writes that must be merged"
+        },
+        {
+          "id": "ch5-s36-o2",
+          "label": "The network latency between clients causes packet loss",
+          "description": "Dropped keystrokes need to be retransmitted"
+        },
+        {
+          "id": "ch5-s36-o3",
+          "label": "The server can't process keystrokes fast enough from multiple users",
+          "description": "Server throughput is the bottleneck"
+        }
+      ],
+      "correctOptionId": "ch5-s36-o1",
+      "explanation": {
+        "reasoning": "Each user's local editor state is effectively a replica that accepts writes (keystrokes) independently \u2014 this IS multi-leader replication. When two users type at the same position simultaneously, their edits are concurrent writes that must be merged without data loss. Solutions include operational transformation (Google Docs) and CRDTs (Automerge, Yjs).",
+        "tradeoffs": "The alternative is locking \u2014 only one user can edit a section at a time \u2014 which is essentially single-leader with transactions. This provides consistency but destroys the real-time collaborative experience. The entire point of collaborative editing is allowing concurrent edits, which inherently requires multi-leader conflict handling.",
+        "keyTakeaway": "Real-time collaborative editing is fundamentally a multi-leader replication problem \u2014 each client is an independent leader accepting writes (keystrokes) that must be merged with concurrent edits.",
+        "commonMistake": "Not recognizing collaborative editing as a replication problem. It maps directly to multi-leader: independent replicas accepting concurrent writes with eventual convergence."
+      }
+    },
+    {
+      "id": "ch5-s37",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "multi-leader"
+      ],
+      "prompt": {
+        "context": "Your team considers multi-leader replication for a single-datacenter deployment to improve write throughput. An experienced engineer warns: 'Multi-leader is dangerous territory \u2014 the subtle bugs will haunt you.'",
+        "question": "Which of these are real dangers that make multi-leader 'dangerous territory'?"
+      },
+      "options": [
+        {
+          "id": "ch5-s37-o1",
+          "label": "Autoincrement keys collide, triggers fire in unexpected orders, and integrity constraints can't span leaders",
+          "description": "Many database features assume a single write point and break silently with multiple leaders"
+        },
+        {
+          "id": "ch5-s37-o2",
+          "label": "Multi-leader requires twice the hardware of single-leader",
+          "description": "Each leader needs a dedicated server with full resources"
+        },
+        {
+          "id": "ch5-s37-o3",
+          "label": "Multi-leader can only work with NoSQL databases, not relational ones",
+          "description": "SQL databases don't support the protocol"
+        }
+      ],
+      "correctOptionId": "ch5-s37-o1",
+      "explanation": {
+        "reasoning": "Multi-leader replication has subtle pitfalls with features that assume a single write point: autoincrement counters can assign the same value on different leaders; database triggers may fire in different orders; integrity constraints (foreign keys, uniqueness) cannot be enforced across leaders. These interactions are 'surprising and often poorly tested' \u2014 bugs surface in production under concurrent load. Kleppmann explicitly warns that multi-leader 'should be avoided if possible.'",
+        "tradeoffs": "Multi-leader is worth the complexity for multi-datacenter deployments (write latency) and offline-capable apps (by necessity). But for single-datacenter setups, the write throughput benefit rarely justifies the conflict resolution complexity and the risk of subtle data corruption.",
+        "keyTakeaway": "Multi-leader replication breaks assumptions baked into many database features (autoincrement, triggers, constraints). It's considered 'dangerous territory' and should only be used when the use case demands it.",
+        "commonMistake": "Adopting multi-leader for write throughput in a single datacenter. The conflict resolution complexity and subtle bugs almost always outweigh the throughput benefit."
+      }
+    },
+    {
+      "id": "ch5-s38",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "multi-leader"
+      ],
+      "prompt": {
+        "context": "Compare how single-leader and multi-leader replication handle a complete datacenter outage:\n\n- Single-leader: The leader's datacenter goes offline. Must failover to a follower in another DC.\n- Multi-leader: One datacenter goes offline. Each DC has its own leader.\n\nBoth setups have 3 datacenters with async inter-DC replication.",
+        "question": "What is multi-leader's advantage when a datacenter goes down?"
+      },
+      "options": [
+        {
+          "id": "ch5-s38-o1",
+          "label": "Other DCs continue independently \u2014 no failover needed; the failed DC catches up when it recovers",
+          "description": "Each datacenter is self-sufficient; the outage is a non-event for other DCs"
+        },
+        {
+          "id": "ch5-s38-o2",
+          "label": "Multi-leader automatically prevents data loss during the DC outage",
+          "description": "Data is guaranteed to be on all leaders before confirming"
+        },
+        {
+          "id": "ch5-s38-o3",
+          "label": "Multi-leader reroutes the failed DC's traffic to the nearest healthy DC automatically",
+          "description": "Built-in traffic management handles the redistribution"
+        }
+      ],
+      "correctOptionId": "ch5-s38-o1",
+      "explanation": {
+        "reasoning": "With multi-leader, each datacenter operates independently with its own leader. When one DC fails, the others continue accepting reads AND writes with no disruption \u2014 no failover coordination, no leader election, no reconfiguring clients. When the failed DC recovers, its leader catches up from the other leaders' replication streams. With single-leader, losing the leader's DC triggers a disruptive failover: promote a follower, reconfigure clients, risk data loss.",
+        "tradeoffs": "Multi-leader's DC outage tolerance comes at the cost of conflict resolution complexity when the failed DC comes back with writes that conflict with writes accepted by other DCs during the outage. Single-leader's failover is disruptive but avoids conflict resolution entirely.",
+        "keyTakeaway": "Multi-leader provides seamless datacenter outage tolerance: each DC operates independently, and the failed DC catches up on recovery. Single-leader requires a disruptive failover process.",
+        "commonMistake": "Thinking multi-leader prevents data loss during DC outages. It doesn't \u2014 writes confirmed only on the failed DC's leader are temporarily unavailable (but not lost, since they'll be replicated when it recovers)."
+      }
+    },
+    {
+      "id": "ch5-s39",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "In your multi-leader setup, two users simultaneously edit the same wiki page title:\n- User 1 changes title from A \u2192 B (at datacenter 1)\n- User 2 changes title from A \u2192 C (at datacenter 2)\n\nBoth writes succeed locally. Conflict detected during async replication.\n\nThe simplest strategy recommended for many multi-leader implementations:",
+        "question": "What is the recommended first-line approach to handle this?"
+      },
+      "options": [
+        {
+          "id": "ch5-s39-o1",
+          "label": "Conflict avoidance \u2014 route all writes for this record through one leader",
+          "description": "Ensure a particular record always goes through the same datacenter's leader"
+        },
+        {
+          "id": "ch5-s39-o2",
+          "label": "Last Write Wins (LWW) \u2014 pick the write with the highest timestamp",
+          "description": "Deterministic resolution using timestamps"
+        },
+        {
+          "id": "ch5-s39-o3",
+          "label": "Merge the values \u2014 store 'B/C' as the title",
+          "description": "Combine both values into a merged result"
+        }
+      ],
+      "correctOptionId": "ch5-s39-o1",
+      "explanation": {
+        "reasoning": "Since many multi-leader implementations handle conflicts poorly, the simplest strategy is to AVOID them entirely. Route all writes for a particular record through the same leader \u2014 e.g., each user's data goes to the datacenter nearest them. From any one user's perspective, this is effectively single-leader.",
+        "tradeoffs": "Conflict avoidance breaks down when you need to re-route traffic (datacenter failure, user relocation). LWW is deterministic but prone to data loss \u2014 it silently discards one write. Merging is context-dependent and complex.",
+        "keyTakeaway": "Conflict avoidance is the most frequently recommended first-line strategy for multi-leader replication \u2014 route each record to a designated leader to prevent conflicts from occurring.",
+        "commonMistake": "Relying on LWW as a general conflict resolution strategy. LWW is dangerously prone to data loss \u2014 it silently discards concurrent writes, which is only acceptable in limited use cases like caching."
+      }
+    },
+    {
+      "id": "ch5-s40",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "You're building a shopping cart service on a multi-leader database. A conflict occurs:\n- Leader 1 has cart: [milk, eggs, flour]\n- Leader 2 has cart: [milk, eggs, ham]\n\nYou need convergent conflict resolution that preserves all items added by any user.",
+        "question": "How should you resolve the conflict?"
+      },
+      "options": [
+        {
+          "id": "ch5-s40-o1",
+          "label": "LWW \u2014 pick the most recent cart",
+          "description": "Use timestamps to pick one cart as the winner"
+        },
+        {
+          "id": "ch5-s40-o2",
+          "label": "Union merge \u2014 combine into [milk, eggs, flour, ham]",
+          "description": "Take the set union of both carts, removing duplicates"
+        },
+        {
+          "id": "ch5-s40-o3",
+          "label": "Application-side on-read resolution",
+          "description": "Store both versions as siblings, let the application merge on next read"
+        }
+      ],
+      "correctOptionId": "ch5-s40-o2",
+      "explanation": {
+        "reasoning": "For a shopping cart, taking the union of both sibling values preserves all items added by any user: [milk, eggs, flour] \u222a [milk, eggs, ham] = [milk, eggs, flour, ham]. This is a sensible domain-specific merge that avoids data loss.",
+        "tradeoffs": "LWW would discard one entire cart \u2014 unacceptable data loss. Union merge works for adds but has a problem with REMOVALS: if a user removes an item from one sibling, the union merge brings it back. Handling deletions requires tombstones \u2014 markers that indicate 'this item was deliberately removed'. On-read resolution (like CouchDB) is also valid but pushes complexity to the application.",
+        "keyTakeaway": "For add-heavy data like shopping carts, set union is a natural merge strategy for siblings \u2014 but deletions require tombstones to prevent removed items from reappearing.",
+        "commonMistake": "Using union merge without tombstones for deletions. Amazon's shopping cart had this exact bug \u2014 removed items would reappear because the union merge didn't distinguish 'never added' from 'added then removed'."
+      }
+    },
+    {
+      "id": "ch5-s41",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "Your database detects a write conflict during replication. You need to decide WHEN to resolve it.\n\n- On-write resolution: Run a conflict handler as soon as the conflict is detected in the replication log (e.g., Bucardo's Perl handler)\n- On-read resolution: Store all conflicting versions; when the data is next read, return all versions and let the application resolve (e.g., CouchDB)",
+        "question": "When is on-read resolution preferred over on-write?"
+      },
+      "options": [
+        {
+          "id": "ch5-s41-o1",
+          "label": "When the resolution may need user input",
+          "description": "On-read can prompt the user to choose; on-write runs in a background process without user interaction"
+        },
+        {
+          "id": "ch5-s41-o2",
+          "label": "When conflicts are very frequent",
+          "description": "On-read batches conflict resolution for efficiency"
+        },
+        {
+          "id": "ch5-s41-o3",
+          "label": "When write latency must be minimized",
+          "description": "On-read defers resolution work to read time"
+        }
+      ],
+      "correctOptionId": "ch5-s41-o1",
+      "explanation": {
+        "reasoning": "On-write conflict handlers run in a background process and must execute quickly \u2014 they can't prompt a user. On-read resolution stores all conflicting versions as siblings and returns them to the application on the next read. The application can then prompt the user to choose, show a diff, or apply domain-specific merge logic with full context.",
+        "tradeoffs": "On-write is simpler and resolves conflicts immediately, but it can't involve user decisions. On-read adds complexity (the application must handle multiple versions) but provides maximum flexibility. Note: conflict resolution applies at the row/document level, not the entire transaction.",
+        "keyTakeaway": "On-read conflict resolution (CouchDB-style) is preferred when resolution may need user input or application-specific context, since on-write handlers run in the background without user interaction.",
+        "commonMistake": "Assuming conflict resolution must happen at write time. On-read resolution is a valid and powerful approach, especially for collaborative applications where users can make informed merge decisions."
+      }
+    },
+    {
+      "id": "ch5-s42",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "A team using multi-leader replication proposes detecting conflicts synchronously: before confirming a write on any leader, check with ALL other leaders to ensure no conflicting write is in progress.\n\nThis would catch conflicts before they're committed, avoiding the need for after-the-fact resolution.",
+        "question": "Why does synchronous conflict detection defeat the purpose of multi-leader?"
+      },
+      "options": [
+        {
+          "id": "ch5-s42-o1",
+          "label": "Coordinating with all leaders on every write eliminates the latency and availability benefits of multi-leader",
+          "description": "Every write must wait for cross-datacenter round trips \u2014 you've effectively rebuilt single-leader"
+        },
+        {
+          "id": "ch5-s42-o2",
+          "label": "Synchronous detection is too CPU-intensive",
+          "description": "The conflict checking algorithm is computationally expensive"
+        },
+        {
+          "id": "ch5-s42-o3",
+          "label": "Network bandwidth between leaders can't handle the coordination traffic",
+          "description": "Cross-leader coordination generates too much network overhead"
+        }
+      ],
+      "correctOptionId": "ch5-s42-o1",
+      "explanation": {
+        "reasoning": "The entire benefit of multi-leader is that each leader accepts writes independently without waiting for others. If you require synchronous coordination to detect conflicts, every write must do a cross-datacenter round trip to all other leaders \u2014 adding the exact latency that multi-leader was designed to avoid. You've effectively recreated single-leader behavior with extra complexity.",
+        "tradeoffs": "Conflict detection in multi-leader MUST be asynchronous \u2014 conflicts are detected after both writes have already been committed independently. This is uncomfortable (committed writes might need to be retroactively merged or reverted) but it's the fundamental trade-off of multi-leader: accept conflicts for lower latency.",
+        "keyTakeaway": "Synchronous conflict detection in multi-leader defeats its purpose \u2014 you lose the latency and availability benefits. Conflicts must be detected and resolved asynchronously after writes are committed.",
+        "commonMistake": "Trying to prevent conflicts rather than resolving them. Prevention via synchronous coordination makes multi-leader equivalent to single-leader."
+      }
+    },
+    {
+      "id": "ch5-s43",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "You need automatic conflict resolution for a collaborative data structure \u2014 no custom application-level merge handlers. You're evaluating three research approaches:\n\n- CRDTs (Conflict-free Replicated Data Types)\n- Mergeable persistent data structures (Git-like three-way merge)\n- Operational transformation (as used in Google Docs)",
+        "question": "What do CRDTs provide that custom merge handlers don't?"
+      },
+      "options": [
+        {
+          "id": "ch5-s43-o1",
+          "label": "Data structures that can be concurrently modified by multiple replicas and always merge automatically and deterministically",
+          "description": "CRDTs guarantee convergence by design \u2014 no application-specific merge logic needed"
+        },
+        {
+          "id": "ch5-s43-o2",
+          "label": "Faster conflict resolution through parallel processing",
+          "description": "CRDTs distribute merge work across multiple CPUs"
+        },
+        {
+          "id": "ch5-s43-o3",
+          "label": "Prevention of conflicts before they occur",
+          "description": "CRDTs use locking protocols to prevent concurrent modifications"
+        }
+      ],
+      "correctOptionId": "ch5-s43-o1",
+      "explanation": {
+        "reasoning": "CRDTs are data structures (sets, counters, maps, registers, sequences) mathematically designed so that concurrent modifications always produce a deterministic, sensible merged result. Unlike custom merge handlers, CRDTs guarantee convergence by their mathematical properties \u2014 you don't need to write application-specific merge logic. Riak implements several CRDTs. Related approaches: mergeable persistent data structures use Git-like three-way merge, and operational transformation (Google Docs) resolves concurrent text edits.",
+        "tradeoffs": "CRDTs are limited to data structures they've been designed for \u2014 not all application data maps cleanly to existing CRDTs. Operational transformation works well for text but is complex and hard to implement correctly. Custom merge handlers remain necessary for domain-specific resolution logic.",
+        "keyTakeaway": "CRDTs provide automatic, mathematically guaranteed conflict resolution for specific data structure types \u2014 eliminating the need for custom merge logic at the cost of constraining your data model.",
+        "commonMistake": "Thinking CRDTs solve all conflict resolution problems. They work for specific data structures (counters, sets, sequences) but not arbitrary application data."
+      }
+    },
+    {
+      "id": "ch5-s44",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-topologies"
+      ],
+      "prompt": {
+        "context": "You have 4 leaders in a multi-leader setup. You're choosing between:\n\n- Circular topology: A \u2192 B \u2192 C \u2192 D \u2192 A (each node forwards to the next)\n- Star topology: A is the root, all writes flow through A\n- All-to-all topology: every leader sends writes to every other leader\n\nNode C crashes.",
+        "question": "In which topology does C's failure cause the LEAST disruption to replication between the remaining nodes?"
+      },
+      "options": [
+        {
+          "id": "ch5-s44-o1",
+          "label": "All-to-all",
+          "description": "Messages travel along different paths; no single point of failure"
+        },
+        {
+          "id": "ch5-s44-o2",
+          "label": "Circular",
+          "description": "Messages can flow in the reverse direction"
+        },
+        {
+          "id": "ch5-s44-o3",
+          "label": "Star",
+          "description": "Other nodes still connect through the root A"
+        }
+      ],
+      "correctOptionId": "ch5-s44-o1",
+      "explanation": {
+        "reasoning": "In all-to-all topology, every leader sends directly to every other leader. If C fails, A, B, and D still communicate directly. In circular topology, C's failure breaks the chain \u2014 A can't reach D through the ring. In star topology, if C is a leaf it's less disruptive, but the topology still has the root (A) as a single point of failure.",
+        "tradeoffs": "All-to-all is more fault-tolerant but can suffer from causality issues: writes may 'overtake' each other on different network paths, arriving out of causal order. Circular/star require manual reconfiguration when a node fails. To prevent infinite loops in circular/star, each write is tagged with all node IDs it has passed through.",
+        "keyTakeaway": "All-to-all topology is the most fault-tolerant for multi-leader replication \u2014 no single node failure blocks replication between others. But it can suffer from causality violations due to variable network delays.",
+        "commonMistake": "Choosing circular/star topology for simplicity without considering that a single node failure interrupts replication for all other nodes until manual reconfiguration."
+      }
+    },
+    {
+      "id": "ch5-s45",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "replication-topologies"
+      ],
+      "prompt": {
+        "context": "In a circular multi-leader topology with 4 leaders (A \u2192 B \u2192 C \u2192 D \u2192 A), when leader A receives a client write, it forwards the write to B, which forwards to C, then D, then back to A.\n\nWithout any safeguard, A would forward the write again, creating an infinite loop.",
+        "question": "How are infinite replication loops prevented?"
+      },
+      "options": [
+        {
+          "id": "ch5-s45-o1",
+          "label": "Each write is tagged with the IDs of all nodes it has passed through \u2014 a node ignores writes already tagged with its own ID",
+          "description": "Node ID tagging lets each node detect writes it has already forwarded"
+        },
+        {
+          "id": "ch5-s45-o2",
+          "label": "Each write has a TTL (time-to-live) that decrements at each hop",
+          "description": "The write expires after a fixed number of hops"
+        },
+        {
+          "id": "ch5-s45-o3",
+          "label": "A central coordinator tracks which nodes have seen each write",
+          "description": "A dedicated coordinator prevents re-forwarding"
+        }
+      ],
+      "correctOptionId": "ch5-s45-o1",
+      "explanation": {
+        "reasoning": "In circular and star topologies, each write is tagged with the identifiers of all nodes it has passed through. When a node receives a write already tagged with its own ID, it knows the write has completed its circuit and doesn't forward it again. This is a simple, decentralized mechanism that prevents infinite loops without any central coordination.",
+        "tradeoffs": "This tagging mechanism means a single node failure can break the entire replication chain \u2014 if node C fails, A's writes can't reach D because B can't forward past the dead node. All-to-all topology avoids this problem but introduces its own issues (causality violations). TTL-based approaches would be fragile \u2014 choosing the right TTL is error-prone.",
+        "keyTakeaway": "Circular/star topologies prevent infinite replication loops by tagging each write with the IDs of nodes it has visited. A node drops writes already tagged with its own ID.",
+        "commonMistake": "Forgetting that node ID tagging means a single node failure breaks the chain. The simplicity of loop prevention comes with the fragility of single-point-of-failure in the topology."
+      }
+    },
+    {
+      "id": "ch5-s46",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "replication-topologies"
+      ],
+      "prompt": {
+        "context": "In an all-to-all multi-leader topology with leaders A, B, and C:\n\n1. A client inserts a row on leader A\n2. Shortly after, a client updates that row on leader B (which has received the insert via replication)\n3. Leader C receives the UPDATE from B before the INSERT from A, due to different network path latencies\n\nLeader C tries to apply an UPDATE to a row that doesn't exist yet.",
+        "question": "What fundamental problem does this illustrate?"
+      },
+      "options": [
+        {
+          "id": "ch5-s46-o1",
+          "label": "All-to-all topology has no global ordering \u2014 causally dependent writes can arrive out of order via different network paths",
+          "description": "The insert and update travel different paths with different latencies, violating causal order"
+        },
+        {
+          "id": "ch5-s46-o2",
+          "label": "Leader C has a bug in its write-apply logic",
+          "description": "A correct implementation would buffer the update"
+        },
+        {
+          "id": "ch5-s46-o3",
+          "label": "The client should have sent both writes to the same leader",
+          "description": "Splitting writes across leaders is not supported"
+        }
+      ],
+      "correctOptionId": "ch5-s46-o1",
+      "explanation": {
+        "reasoning": "In all-to-all topology, each leader sends directly to every other leader via independent network paths. These paths have different latencies, so a causally later write (UPDATE) can arrive at a node before a causally earlier write (INSERT). This is a fundamental ordering problem \u2014 not a bug. The all-to-all topology has no mechanism to enforce causal ordering across different paths.",
+        "tradeoffs": "Version vectors can be used to detect and order causally dependent writes, but many multi-leader implementations handle this poorly. Circular/star topologies avoid this problem (writes flow through a fixed path) but are less fault-tolerant. All-to-all trades fault tolerance for causality issues.",
+        "keyTakeaway": "All-to-all multi-leader topology can violate causal ordering: writes traveling different network paths may arrive out of causal order, causing updates to arrive before inserts.",
+        "commonMistake": "Assuming all-to-all is strictly better than circular/star. It's more fault-tolerant but suffers from causality violations that circular/star topologies avoid by routing all writes through a single path."
+      }
+    },
+    {
+      "id": "ch5-s47",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "leaderless"
+      ],
+      "prompt": {
+        "context": "You have a 3-node leaderless (Dynamo-style) database. Node 3 goes down for maintenance. A client writes a value during the outage \u2014 the write is sent to all 3 nodes, but only nodes 1 and 2 acknowledge it.\n\nNode 3 comes back online. Another client reads the key.",
+        "question": "How does the reading client get the correct (latest) value?"
+      },
+      "options": [
+        {
+          "id": "ch5-s47-o1",
+          "label": "Read from multiple nodes in parallel and use version numbers to pick the newest",
+          "description": "The client reads from several nodes; compares version numbers to find the latest value"
+        },
+        {
+          "id": "ch5-s47-o2",
+          "label": "Wait for node 3 to catch up before reading",
+          "description": "The system blocks reads until all replicas are consistent"
+        },
+        {
+          "id": "ch5-s47-o3",
+          "label": "Always read from node 1 since it has the latest write",
+          "description": "Route reads to the most recently updated node"
+        }
+      ],
+      "correctOptionId": "ch5-s47-o1",
+      "explanation": {
+        "reasoning": "In leaderless replication, read requests are sent to several nodes in parallel. The client may get different values \u2014 the up-to-date value (version 7) from nodes 1 and 2, and a stale value (version 6) from node 3. Version numbers determine which is newer. The client uses the latest version.",
+        "tradeoffs": "There's no blocking or waiting \u2014 reads and writes proceed with whatever nodes are available. Stale nodes are repaired through read repair (client writes the newer value back to the stale node) or an anti-entropy background process.",
+        "keyTakeaway": "Leaderless replication handles node outages by reading from multiple nodes in parallel and using version numbers to identify the latest value \u2014 no failover needed.",
+        "commonMistake": "Thinking leaderless systems need a failover mechanism. They don't \u2014 the quorum protocol handles availability naturally by reading from and writing to multiple nodes."
+      }
+    },
+    {
+      "id": "ch5-s48",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "leaderless"
+      ],
+      "prompt": {
+        "context": "In your Dynamo-style database, after a node outage, the recovered node has stale data for some keys. Two mechanisms exist to bring it up to date:\n\n- Read repair: When a client reads and detects stale data on a replica, it writes the newer value back\n- Anti-entropy process: A background process continuously looks for differences between replicas and copies missing data",
+        "question": "What happens to data that is RARELY read if only read repair is used (no anti-entropy)?"
+      },
+      "options": [
+        {
+          "id": "ch5-s48-o1",
+          "label": "Rarely-read data may remain stale indefinitely, reducing durability",
+          "description": "Read repair only triggers when data is actually read; if nobody reads it, it's never repaired"
+        },
+        {
+          "id": "ch5-s48-o2",
+          "label": "The data is automatically repaired within a few minutes",
+          "description": "Read repair works on all data regardless of read patterns"
+        },
+        {
+          "id": "ch5-s48-o3",
+          "label": "The data is lost permanently",
+          "description": "Without anti-entropy, stale data is eventually garbage collected"
+        }
+      ],
+      "correctOptionId": "ch5-s48-o1",
+      "explanation": {
+        "reasoning": "Read repair is only triggered when a client happens to read the data and detects a stale version. For values that are rarely or never read, read repair never kicks in, so some replicas may permanently hold stale data. This reduces effective durability \u2014 if the nodes with the current data fail, the stale version is all that remains.",
+        "tradeoffs": "Anti-entropy processes solve this by continuously scanning for differences in the background, regardless of read patterns. However, anti-entropy doesn't guarantee ordering and may have significant delay. Using both mechanisms provides the best coverage: read repair for frequently accessed data, anti-entropy for everything else.",
+        "keyTakeaway": "Read repair alone leaves rarely-read data vulnerable \u2014 it only fires on actual reads. Anti-entropy is needed to ensure ALL data converges, not just frequently-accessed data.",
+        "commonMistake": "Assuming read repair is sufficient for all data. It's an optimization for hot data, not a comprehensive consistency mechanism. Voldemort, for example, doesn't implement anti-entropy and accepts this durability risk."
+      }
+    },
+    {
+      "id": "ch5-s49",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "quorums"
+      ],
+      "prompt": {
+        "context": "Your Dynamo-style database has n = 5 replicas. You need to configure write quorum (w) and read quorum (r) to guarantee that reads always return the latest written value.\n\nThe quorum condition: w + r > n ensures overlap between write and read sets.",
+        "question": "Which configuration satisfies the quorum condition?"
+      },
+      "options": [
+        {
+          "id": "ch5-s49-o1",
+          "label": "w = 3, r = 3",
+          "description": "3 + 3 = 6 > 5: write and read sets must overlap by at least 1 node"
+        },
+        {
+          "id": "ch5-s49-o2",
+          "label": "w = 2, r = 2",
+          "description": "2 + 2 = 4 < 5: smaller quorums for faster operations"
+        },
+        {
+          "id": "ch5-s49-o3",
+          "label": "w = 1, r = 1",
+          "description": "1 + 1 = 2 < 5: minimal quorums for maximum availability"
+        }
+      ],
+      "correctOptionId": "ch5-s49-o1",
+      "explanation": {
+        "reasoning": "With n = 5, w + r must be > 5 for quorum overlap. w = 3, r = 3 gives 6 > 5, guaranteeing at least 1 node in the read set has the latest write. This tolerates up to 2 unavailable nodes for both reads and writes (since you only need 3 of 5 to respond).",
+        "tradeoffs": "w = 2, r = 2 gives 4 \u2264 5, which doesn't guarantee seeing the latest write \u2014 you could read from 2 nodes that missed the write. You CAN use w + r \u2264 n for lower latency, but you accept the risk of reading stale values. Common choice: w = r = (n+1)/2 rounded up.",
+        "keyTakeaway": "The quorum condition w + r > n ensures that the set of nodes you read from and the set you wrote to overlap, guaranteeing at least one read node has the latest value.",
+        "commonMistake": "Thinking quorums must be strict majorities. They don't have to be \u2014 w + r > n just requires overlap. For example, w = 5, r = 1 also works (fast reads, but any single node failure blocks writes)."
+      }
+    },
+    {
+      "id": "ch5-s50",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "quorums"
+      ],
+      "prompt": {
+        "context": "You have a Dynamo-style database with n = 5. Your workload is 90% reads, 10% writes. You want to optimize for read performance while maintaining the quorum guarantee w + r > n.",
+        "question": "Which quorum configuration optimizes for this read-heavy workload?"
+      },
+      "options": [
+        {
+          "id": "ch5-s50-o1",
+          "label": "w = 5, r = 1",
+          "description": "Write to ALL nodes, read from just 1 \u2014 every single node has the latest data"
+        },
+        {
+          "id": "ch5-s50-o2",
+          "label": "w = 1, r = 5",
+          "description": "Write to 1 node, read from ALL nodes"
+        },
+        {
+          "id": "ch5-s50-o3",
+          "label": "w = 3, r = 3",
+          "description": "Balanced: write to majority, read from majority"
+        }
+      ],
+      "correctOptionId": "ch5-s50-o1",
+      "explanation": {
+        "reasoning": "w = 5, r = 1 satisfies the quorum (5 + 1 = 6 > 5). Every write goes to all 5 nodes, so any single node has the latest data. Reads only need 1 node \u2014 fastest possible reads. Since the workload is 90% reads, optimizing read latency has the biggest impact.",
+        "tradeoffs": "The disadvantage: a single failed node blocks ALL writes (you need all 5 to succeed). For a read-heavy workload, this trade-off is acceptable \u2014 writes are rare enough that the stricter write availability is tolerable. w = 1, r = 5 would be optimal for write-heavy workloads but terrible for reads.",
+        "keyTakeaway": "Quorum parameters are tunable: for read-heavy workloads, set w = n, r = 1 for the fastest reads. For write-heavy workloads, set w = 1, r = n. The trade-off is always availability of the less-frequent operation.",
+        "commonMistake": "Always using balanced quorums (w = r = majority). Asymmetric quorums can dramatically improve performance for skewed workloads."
+      }
+    },
+    {
+      "id": "ch5-s51",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "quorums"
+      ],
+      "prompt": {
+        "context": "Your Dynamo-style database with n = 3, w = 2, r = 2 seems to satisfy the quorum condition (2 + 2 = 4 > 3). But a network partition cuts your client off from 2 of the 3 designated nodes.\n\nThe client can reach the 1 remaining home node plus 2 other nodes in the cluster that don't normally store this key.\n\nThe database offers a 'sloppy quorum' option.",
+        "question": "What happens if sloppy quorum is enabled?"
+      },
+      "options": [
+        {
+          "id": "ch5-s51-o1",
+          "label": "Writes succeed on non-home nodes; hinted handoff transfers data back later",
+          "description": "The write goes to available nodes (even non-designated ones) to maintain availability; once the partition heals, data is sent to the correct home nodes"
+        },
+        {
+          "id": "ch5-s51-o2",
+          "label": "Writes are queued until the home nodes come back",
+          "description": "The database waits for the partition to heal"
+        },
+        {
+          "id": "ch5-s51-o3",
+          "label": "The quorum guarantee (w + r > n) still holds with sloppy quorum",
+          "description": "Sloppy quorum maintains the same consistency as strict quorum"
+        }
+      ],
+      "correctOptionId": "ch5-s51-o1",
+      "explanation": {
+        "reasoning": "With sloppy quorum, writes are accepted by any w reachable nodes, even if they aren't the designated 'home' nodes for this key. This preserves write availability during network partitions. Once the partition heals, hinted handoff transfers the data from the temporary nodes back to the correct home nodes.",
+        "tradeoffs": "Critical: sloppy quorums BREAK the quorum consistency guarantee. The w writes may land on completely different nodes than the r reads, so there's no guaranteed overlap. A sloppy quorum is NOT a true quorum \u2014 it's an availability optimization that provides durability (data is stored on w nodes somewhere) but NOT consistency.",
+        "keyTakeaway": "Sloppy quorums increase write availability during partitions but break the w + r > n consistency guarantee. They ensure durability (data stored on w nodes) but not that reads will see the latest write until hinted handoff completes.",
+        "commonMistake": "Thinking sloppy quorums maintain the same consistency as strict quorums. They don't \u2014 the 'quorum' in sloppy quorum is misleading. It's a durability mechanism, not a consistency mechanism."
+      }
+    },
+    {
+      "id": "ch5-s52",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "quorums"
+      ],
+      "prompt": {
+        "context": "Your database uses strict quorums (w + r > n). A colleague claims: 'With strict quorums, reads always return the most recent write \u2014 we effectively have linearizability.'\n\nYou review the literature and find at least 5 edge cases where even strict quorums return stale reads.",
+        "question": "Why can quorum reads still return stale values despite w + r > n?"
+      },
+      "options": [
+        {
+          "id": "ch5-s52-o1",
+          "label": "Edge cases: concurrent read/write timing, partial write failures, and lagging replicas can all defeat quorum guarantees",
+          "description": "A read concurrent with a write may hit nodes with a mix of old and new values; partial write success creates inconsistency"
+        },
+        {
+          "id": "ch5-s52-o2",
+          "label": "Quorum guarantees are mathematically sound and never allow stale reads with strict quorums",
+          "description": "The w + r > n condition is a proof of correctness"
+        },
+        {
+          "id": "ch5-s52-o3",
+          "label": "Stale reads only occur with sloppy quorums, never with strict ones",
+          "description": "Strict quorums guarantee linearizability by definition"
+        }
+      ],
+      "correctOptionId": "ch5-s52-o1",
+      "explanation": {
+        "reasoning": "Even with w + r > n, stale reads can happen: (1) a write concurrent with a read \u2014 nodes in the read quorum may have a mix of old and new values; (2) a write succeeds on some nodes but fails on others with no rollback; (3) a node carrying the new value fails and is restored from a stale backup; (4) writes that are 'successful' but unluckily timed; (5) read repair hasn't propagated to all nodes yet. Quorums provide probabilistic freshness, not linearizability.",
+        "tradeoffs": "Achieving true linearizability with quorums requires additional mechanisms (e.g., read repair on every read, or a consensus protocol like Raft/Paxos). Plain quorums are a weaker guarantee that works well in practice but has real edge cases.",
+        "keyTakeaway": "Strict quorums (w + r > n) do NOT guarantee linearizability. Several edge cases \u2014 concurrent operations, partial failures, and stale replicas \u2014 can cause quorum reads to return outdated values.",
+        "commonMistake": "Equating quorum overlap with linearizability. The overlap guarantees that at least one node in the read set has the latest value, but the reader may not be able to determine which response is newest without additional version metadata."
+      }
+    },
+    {
+      "id": "ch5-s53",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "leaderless"
+      ],
+      "prompt": {
+        "context": "You're deploying a leaderless database across 3 datacenters and evaluating Cassandra vs Riak:\n\n- Cassandra: n can span all datacenters (e.g., n=9 with 3 replicas per DC). Quorum reads/writes can span DCs.\n- Riak: All n replicas are within one DC. Cross-DC replication is handled asynchronously in the background.",
+        "question": "What is the key architectural difference for multi-datacenter leaderless replication?"
+      },
+      "options": [
+        {
+          "id": "ch5-s53-o1",
+          "label": "Cassandra: cross-DC quorums for stronger consistency at higher latency; Riak: local quorums with async cross-DC sync for lower latency",
+          "description": "Cassandra allows DC-spanning quorums; Riak keeps quorums local and syncs DCs asynchronously"
+        },
+        {
+          "id": "ch5-s53-o2",
+          "label": "Both use identical multi-DC strategies \u2014 the difference is only in query language",
+          "description": "The replication architecture is the same"
+        },
+        {
+          "id": "ch5-s53-o3",
+          "label": "Cassandra supports multi-DC but Riak does not",
+          "description": "Riak is limited to single-datacenter deployments"
+        }
+      ],
+      "correctOptionId": "ch5-s53-o1",
+      "explanation": {
+        "reasoning": "This is a fundamental architectural choice: Cassandra includes cross-DC replicas in its quorum count, so a write with QUORUM consistency level might require acknowledgment from nodes in multiple DCs \u2014 stronger cross-DC consistency but higher latency. Riak keeps all n replicas within the local DC and handles cross-DC replication asynchronously \u2014 lower latency but cross-DC reads may be stale. Cassandra also offers LOCAL_QUORUM for DC-local quorums when latency matters.",
+        "tradeoffs": "Cassandra's approach is more flexible (choose per-query whether to span DCs) but more complex. Riak's approach is simpler \u2014 local operations are always fast, cross-DC sync happens in the background. The choice depends on whether you need cross-DC consistency guarantees or can tolerate async convergence.",
+        "keyTakeaway": "Cassandra and Riak take opposite approaches to multi-DC leaderless replication: Cassandra allows cross-DC quorums (consistency vs latency trade-off per query), while Riak keeps quorums DC-local with async cross-DC sync.",
+        "commonMistake": "Assuming all leaderless databases handle multi-DC the same way. The Cassandra vs Riak difference in quorum scope is a major architectural distinction that affects consistency and latency."
+      }
+    },
+    {
+      "id": "ch5-s54",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "leaderless"
+      ],
+      "prompt": {
+        "context": "Your operations team monitors replication lag in your leader-based database by comparing the leader's log position to each follower's position \u2014 they can measure lag in seconds precisely.\n\nThey now want to monitor staleness in your new leaderless (Dynamo-style) database.",
+        "question": "Why is monitoring staleness harder in leaderless systems?"
+      },
+      "options": [
+        {
+          "id": "ch5-s54-o1",
+          "label": "There is no fixed leader to measure against \u2014 writes arrive at replicas in different orders, making 'lag' hard to define",
+          "description": "Without a single reference point, you can't compute a simple lag metric"
+        },
+        {
+          "id": "ch5-s54-o2",
+          "label": "Leaderless systems have no replication lag by definition",
+          "description": "Quorum protocols ensure all reads are fresh"
+        },
+        {
+          "id": "ch5-s54-o3",
+          "label": "Standard monitoring tools don't support leaderless databases",
+          "description": "Tooling gaps are the only issue"
+        }
+      ],
+      "correctOptionId": "ch5-s54-o1",
+      "explanation": {
+        "reasoning": "In leader-based replication, the leader's log provides a total ordering \u2014 measuring how far behind a follower is (in bytes or seconds) is straightforward. In leaderless systems, there's no single reference point: each replica may have a different subset of writes, arriving in different orders. 'How stale is replica X?' requires comparing individual key versions across replicas rather than a single lag number. Research on measuring eventual consistency staleness exists but is not widely implemented in production monitoring.",
+        "tradeoffs": "Some systems (like Cassandra) provide per-node metrics, but there's no standard equivalent of 'replication lag in seconds' for leaderless systems. This makes it harder to set alerts and SLOs around data freshness \u2014 you may not know your system is serving stale reads until a user reports it.",
+        "keyTakeaway": "Monitoring staleness in leaderless systems is fundamentally harder than in leader-based systems because there's no single log position to measure against \u2014 each replica has a different view of which writes it has received.",
+        "commonMistake": "Assuming leaderless databases don't need staleness monitoring because quorums 'guarantee' freshness. As discussed, quorums have edge cases where stale reads occur \u2014 monitoring is important but harder."
+      }
+    },
+    {
+      "id": "ch5-s55",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "version-vectors"
+      ],
+      "prompt": {
+        "context": "Two clients concurrently edit a shopping cart on a single-replica database:\n\n1. Client 1 adds milk \u2192 server stores [milk] at version 1, returns v1 to client 1\n2. Client 2 adds eggs (doesn't know about milk) \u2192 server stores [eggs] at version 2, keeps [milk] at v1 as a separate sibling\n3. Client 1 adds flour (knows about v1 [milk], not v2 [eggs]) \u2192 sends [milk, flour] with v1\n\nThe server receives client 1's write tagged with version 1.",
+        "question": "How does the server handle this write?"
+      },
+      "options": [
+        {
+          "id": "ch5-s55-o1",
+          "label": "Overwrite v1 [milk], keep v2 [eggs] as a concurrent sibling alongside new v3 [milk, flour]",
+          "description": "The write supersedes v1 but is concurrent with v2; both must be kept"
+        },
+        {
+          "id": "ch5-s55-o2",
+          "label": "Overwrite everything with [milk, flour] since it's the newest write",
+          "description": "Last write wins \u2014 the most recent write replaces all previous values"
+        },
+        {
+          "id": "ch5-s55-o3",
+          "label": "Reject the write because it's based on stale version 1",
+          "description": "Only writes based on the latest version are accepted"
+        }
+      ],
+      "correctOptionId": "ch5-s55-o1",
+      "explanation": {
+        "reasoning": "The server uses the version number included with the write to determine causal relationships. Client 1's write is tagged with v1, meaning it supersedes v1 [milk] (client 1 knew about it). But v2 [eggs] has a higher version number that client 1 never saw \u2014 so [milk, flour] and [eggs] are concurrent siblings. Both are kept: v3 = [milk, flour] and v2 = [eggs].",
+        "tradeoffs": "This algorithm ensures NO DATA IS SILENTLY DROPPED. The cost is that clients must merge siblings. If client 2 later reads, it gets both [milk, flour] and [eggs], and must merge them (e.g., union \u2192 [milk, flour, eggs]) before writing back.",
+        "keyTakeaway": "The version number algorithm: writes overwrite all values at or below the included version, but keep higher-versioned values as concurrent siblings. This preserves all data without silent loss.",
+        "commonMistake": "Confusing 'supersedes' with 'overwrites everything'. A write tagged with version N only supersedes versions \u2264 N. Versions > N are concurrent and must be kept as siblings."
+      }
+    },
+    {
+      "id": "ch5-s56",
+      "type": "decision",
+      "difficulty": 5,
+      "concepts": [
+        "version-vectors"
+      ],
+      "prompt": {
+        "context": "You're using Cassandra with Last Write Wins (LWW) for conflict resolution. Two clients concurrently update the same key:\n\n- Client A writes value X at timestamp T1 = 1000\n- Client B writes value Y at timestamp T2 = 1001\n\nBoth writes are reported as successful (written to w replicas). Only the write with the highest timestamp survives.",
+        "question": "Why is LWW problematic even when both writes were confirmed as successful?"
+      },
+      "options": [
+        {
+          "id": "ch5-s56-o1",
+          "label": "One successful write is silently discarded \u2014 data loss despite success confirmation",
+          "description": "Client A received a success response but its data was permanently lost because T1 < T2"
+        },
+        {
+          "id": "ch5-s56-o2",
+          "label": "The timestamps may be wrong due to clock skew",
+          "description": "Different nodes have different clock times, so the 'last' write may not actually be last"
+        },
+        {
+          "id": "ch5-s56-o3",
+          "label": "Both are problematic \u2014 silent data loss AND unreliable timestamps",
+          "description": "LWW has both the data loss problem and the clock skew problem simultaneously"
+        }
+      ],
+      "correctOptionId": "ch5-s56-o3",
+      "explanation": {
+        "reasoning": "LWW has TWO problems: (1) Silent data loss \u2014 client A's write succeeded on w replicas and got a success confirmation, but is permanently discarded because its timestamp is lower. This violates expectations. (2) Clock skew \u2014 in distributed systems, clocks aren't perfectly synchronized, so the 'highest timestamp' may not correspond to the actually-last write.",
+        "tradeoffs": "The only safe way to use LWW is to make keys immutable (write once, never update) \u2014 e.g., using UUIDs as keys so each write creates a new key rather than updating an existing one. For mutable data where loss is unacceptable, LWW is a poor choice.",
+        "keyTakeaway": "LWW achieves convergence at the cost of durability: concurrent writes are silently discarded even though they were confirmed as successful. Combined with clock skew, even non-concurrent writes can be lost.",
+        "commonMistake": "Thinking LWW is a safe default for conflict resolution. It silently loses data. The safe pattern with LWW databases is write-once immutable keys (e.g., UUID per write)."
+      }
+    },
+    {
+      "id": "ch5-s57",
+      "type": "decision",
+      "difficulty": 5,
+      "concepts": [
+        "version-vectors"
+      ],
+      "prompt": {
+        "context": "Your leaderless database has 3 replicas accepting writes concurrently. A single version number per key is insufficient \u2014 you need to track causality across replicas.\n\nThe database maintains a version vector: one version number per replica per key.\n\nExample for key X:\n- Replica 1 version: 5\n- Replica 2 version: 3  \n- Replica 3 version: 4\n\nVector: [5, 3, 4]",
+        "question": "Why is a version vector needed instead of a single version number?"
+      },
+      "options": [
+        {
+          "id": "ch5-s57-o1",
+          "label": "Multiple replicas accept writes independently \u2014 a single counter can't capture which replica saw which writes",
+          "description": "Each replica increments its own counter; the vector tracks what each replica has seen, enabling correct concurrent vs. causal determination"
+        },
+        {
+          "id": "ch5-s57-o2",
+          "label": "Version vectors are faster to compare than single numbers",
+          "description": "Performance optimization for high-throughput systems"
+        },
+        {
+          "id": "ch5-s57-o3",
+          "label": "Version vectors prevent split brain",
+          "description": "The vector ensures only one replica accepts writes at a time"
+        }
+      ],
+      "correctOptionId": "ch5-s57-o1",
+      "explanation": {
+        "reasoning": "With multiple replicas accepting writes, each replica needs its own version counter. When replica 1 processes a write, it increments its counter. The version vector [5, 3, 4] means: replica 1 has processed 5 writes, replica 2 has processed 3, replica 3 has processed 4. By comparing vectors, we can determine: if A's vector is \u2264 B's in all components, A happened before B. If neither dominates, they're concurrent.",
+        "tradeoffs": "Version vectors add metadata overhead (one number per replica per key) and require clients to send the vector back when writing (Riak calls this the 'causal context'). A single version number works fine for a single replica, but can't capture cross-replica causality.",
+        "keyTakeaway": "Version vectors extend the single-replica version number to multiple replicas \u2014 each replica tracks its own version, and the full vector determines happens-before vs. concurrency relationships.",
+        "commonMistake": "Confusing version vectors with vector clocks. They're related but not identical: version vectors track data versions across replicas, while vector clocks track events across processes. For replica state comparison, version vectors are the correct abstraction."
+      }
+    },
+    {
+      "id": "ch5-s58",
+      "type": "decision",
+      "difficulty": 4,
+      "concepts": [
+        "version-vectors",
+        "conflict-resolution"
+      ],
+      "prompt": {
+        "context": "In your Dynamo-style shopping cart, two clients independently added items, creating siblings:\n\n- Sibling A: [milk, flour, eggs, bacon]\n- Sibling B: [eggs, milk, ham]\n\nA client reads both siblings and needs to merge them. A user has also REMOVED eggs since their last update \u2014 but eggs appears in both siblings.",
+        "question": "What problem arises when merging, and how is it solved?"
+      },
+      "options": [
+        {
+          "id": "ch5-s58-o1",
+          "label": "Union merge resurrects removed items \u2014 solved by tombstones",
+          "description": "Taking the union brings back eggs even though it was removed. Tombstones (deletion markers) indicate items that were deliberately removed."
+        },
+        {
+          "id": "ch5-s58-o2",
+          "label": "Duplicate detection fails \u2014 solved by deduplication IDs",
+          "description": "The same item appears multiple times; dedup IDs prevent duplicates"
+        },
+        {
+          "id": "ch5-s58-o3",
+          "label": "No problem \u2014 the union of siblings is always correct",
+          "description": "Set union naturally produces the correct merged cart"
+        }
+      ],
+      "correctOptionId": "ch5-s58-o1",
+      "explanation": {
+        "reasoning": "If a user removed eggs from their cart, but eggs appears in the other sibling (which didn't know about the removal), a naive union merge brings eggs back. This is the exact bug Amazon's shopping cart had \u2014 removed items would reappear. The solution is tombstones: instead of deleting an item, mark it as deleted with a version number. During merge, tombstoned items are excluded.",
+        "tradeoffs": "Tombstones add complexity \u2014 you need to track deletions alongside additions and eventually garbage-collect old tombstones. CRDTs (Conflict-free Replicated Data Types) automate this merge logic, including handling deletions correctly.",
+        "keyTakeaway": "In sibling merging, deletions require tombstones \u2014 without them, union merge resurrects removed items. This was a real bug in Amazon's Dynamo shopping cart.",
+        "commonMistake": "Assuming set union is always a safe merge strategy. It works for pure additions but fails for removals without tombstones."
+      }
+    },
+    {
+      "id": "ch5-s59",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "version-vectors"
+      ],
+      "prompt": {
+        "context": "Two operations A and B occur in a distributed system. We say 'A happened before B' (A \u2192 B).\n\nA colleague asks: 'Does that just mean A's timestamp is earlier than B's timestamp?'",
+        "question": "What does 'happened before' actually mean in distributed systems?"
+      },
+      "options": [
+        {
+          "id": "ch5-s59-o1",
+          "label": "B knew about A or was causally dependent on A \u2014 determined by logical ordering, not physical timestamps",
+          "description": "The relationship captures causal dependency: B could have been influenced by A's result"
+        },
+        {
+          "id": "ch5-s59-o2",
+          "label": "A's wall-clock timestamp is strictly earlier than B's wall-clock timestamp",
+          "description": "Physical time determines the ordering"
+        },
+        {
+          "id": "ch5-s59-o3",
+          "label": "A and B are on the same node and A completed before B started",
+          "description": "Happened-before only applies to operations on the same machine"
+        }
+      ],
+      "correctOptionId": "ch5-s59-o1",
+      "explanation": {
+        "reasoning": "The 'happens-before' relationship (from Lamport, 1978) captures causal dependency, not physical time. 'A happened before B' means B could have been influenced by A \u2014 B's operation knew about A's result. This is determined by logical ordering mechanisms (version numbers, vector clocks), not wall-clock timestamps, which are unreliable in distributed systems due to clock skew.",
+        "tradeoffs": "Physical timestamps are intuitive but unreliable \u2014 clocks drift, NTP corrections cause jumps, and different nodes have different times. Logical ordering (Lamport timestamps, version vectors) provides a reliable happens-before relationship without depending on synchronized clocks.",
+        "keyTakeaway": "Happened-before captures causal dependency, not physical time. 'A happened before B' means B knew about A \u2014 determined by logical ordering mechanisms, not wall clocks.",
+        "commonMistake": "Equating happened-before with wall-clock ordering. In distributed systems, a wall-clock 'earlier' timestamp does NOT mean the operation happened before another \u2014 clocks are not synchronized."
+      }
+    },
+    {
+      "id": "ch5-s60",
+      "type": "decision",
+      "difficulty": 3,
+      "concepts": [
+        "version-vectors"
+      ],
+      "prompt": {
+        "context": "Client A writes to key X at 10:00:00 AM. Client B writes to key X at 10:05:00 AM \u2014 five minutes later on the wall clock. But Client B never saw Client A's write (it was still propagating through the network).\n\nA colleague says: 'These can't be concurrent \u2014 they're 5 minutes apart.'",
+        "question": "Can these operations be concurrent despite the 5-minute wall-clock gap?"
+      },
+      "options": [
+        {
+          "id": "ch5-s60-o1",
+          "label": "Yes \u2014 'concurrent' means neither knew about the other, regardless of physical time separation",
+          "description": "Concurrency is defined by mutual unawareness, not time overlap"
+        },
+        {
+          "id": "ch5-s60-o2",
+          "label": "No \u2014 operations 5 minutes apart cannot be concurrent by definition",
+          "description": "The time gap is too large for concurrency"
+        },
+        {
+          "id": "ch5-s60-o3",
+          "label": "It depends on the replication lag \u2014 if lag exceeds 5 minutes, they're concurrent",
+          "description": "Concurrency is relative to the replication delay"
+        }
+      ],
+      "correctOptionId": "ch5-s60-o1",
+      "explanation": {
+        "reasoning": "'Concurrent' in distributed systems does NOT mean 'happening at the same physical time.' Two operations are concurrent if neither one knew about the other \u2014 they are causally independent. Client A wrote at 10:00 and Client B wrote at 10:05 without having seen A's write. B was not causally dependent on A. The 5-minute gap is irrelevant \u2014 physical time does not determine concurrency, causal knowledge does.",
+        "tradeoffs": "This is counterintuitive because in everyday language, 'concurrent' implies time overlap. In distributed systems, it means 'no causal relationship.' Two operations a week apart can be concurrent if neither party learned about the other's operation. This definition is what makes version vectors work \u2014 they track causal knowledge, not time.",
+        "keyTakeaway": "In distributed systems, concurrent means 'neither operation knew about the other' \u2014 not 'happened at the same time.' Operations separated by minutes, hours, or even days can be concurrent if there's no causal dependency.",
+        "commonMistake": "Using the everyday meaning of 'concurrent' (simultaneous in time). The distributed systems definition is purely about causal independence \u2014 physical time is irrelevant."
+      }
+    }
+  ]
+}
