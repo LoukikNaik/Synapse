@@ -22,6 +22,11 @@ final class StudySessionManager: ObservableObject {
         return currentScenarios[currentIndex]
     }
 
+    var previousScenario: Scenario? {
+        guard currentIndex > 0 else { return nil }
+        return currentScenarios[currentIndex - 1]
+    }
+
     var progress: Double {
         guard !currentScenarios.isEmpty else { return 0 }
         return Double(currentIndex) / Double(currentScenarios.count)
@@ -81,6 +86,7 @@ final class StudySessionManager: ObservableObject {
         isSessionComplete = true
         isSessionActive = false
         try? modelContext.save()
+        KeychainBackupService.backupProgress(context: modelContext)
     }
 
     private func selectScenarios(deckID: String?) -> [Scenario] {
