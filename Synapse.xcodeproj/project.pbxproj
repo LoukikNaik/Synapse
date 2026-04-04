@@ -31,6 +31,7 @@
 		7666ED3629D754C4EBE379AF /* ImportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB03BF7F910D0B25DFF3C03 /* ImportPreviewView.swift */; };
 		79AF04B357596236D5904868 /* DifficultyBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C88E3966BCF739EA2C5AB8 /* DifficultyBadge.swift */; };
 		86E521562F6EF13A0845CCEB /* DeckImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBAEC998530E993EF18BBD6 /* DeckImportService.swift */; };
+		KC0000000000000000000001 /* KeychainBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = KC0000000000000000000002 /* KeychainBackupService.swift */; };
 		98F29D5A2AA2044B7C268594 /* python_dsa.json in Resources */ = {isa = PBXBuildFile; fileRef = F31E220881695E4DA1017249 /* python_dsa.json */; };
 		9FE7F64AC653FFE560238A29 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3991F23819AA77801F0E1545 /* DashboardView.swift */; };
 		A135356C42E6EB99B9FB513E /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F645548CF3D6483384DE2DB0 /* StatsView.swift */; };
@@ -38,8 +39,14 @@
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* CodeAwareTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978869504132 /* CodeAwareTextView.swift */; };
 		A48BB029A6110043FEFCF046 /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91EA6DFF394ADFFE26D7F6D /* ImportView.swift */; };
 		A70A7389B51A872DA9E914E0 /* ScenarioCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DA957F3CC2EF112BE058B63 /* ScenarioCardView.swift */; };
+		AA1122334455667788990011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1122334455667788990022 /* Assets.xcassets */; };
 		B5DED5B15DED41EA2804B872 /* DTOMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A31479AEC83EAB3E2E163ED /* DTOMapper.swift */; };
 		B795F0256657F8A58CD14B96 /* SynapseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2ADADF9FC83A46548E45E2D /* SynapseApp.swift */; };
+		BB1100000000000000000001 /* interview_linked_list.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000011 /* interview_linked_list.json */; };
+		BB1100000000000000000002 /* interview_binary_tree.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000012 /* interview_binary_tree.json */; };
+		BB1100000000000000000003 /* interview_trie.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000013 /* interview_trie.json */; };
+		BB1100000000000000000004 /* interview_graph.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000014 /* interview_graph.json */; };
+		BB1100000000000000000005 /* interview_binary_search.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000015 /* interview_binary_search.json */; };
 		BEAC26AE5CAF9ACA64DFACD6 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC09AA0C3A852948D075F5D /* FeedbackView.swift */; };
 		C4555349FCF82F75C1016478 /* ConceptDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4628BA6DD17B7AA312D60D0A /* ConceptDTO.swift */; };
 		C6EB46B3E79D1A9A307A218A /* DeckRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0ECC0830207FFB25A259ABD /* DeckRowView.swift */; };
@@ -55,12 +62,6 @@
 		DBE88A2C9D134B8B130746AC /* DeckLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1763203B32D629E3743323 /* DeckLibraryView.swift */; };
 		DD56E86C4DA62685537F6B6B /* StudySessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67222FB2DDAA6A1F986F48BD /* StudySessionManager.swift */; };
 		DE261B3DDD12D8B561D30FAE /* ddia_consistency_models.json in Resources */ = {isa = PBXBuildFile; fileRef = E28DD9217BE14C96507ACA0E /* ddia_consistency_models.json */; };
-		AA1122334455667788990011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1122334455667788990022 /* Assets.xcassets */; };
-		BB1100000000000000000001 /* interview_linked_list.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000011 /* interview_linked_list.json */; };
-		BB1100000000000000000002 /* interview_binary_tree.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000012 /* interview_binary_tree.json */; };
-		BB1100000000000000000003 /* interview_trie.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000013 /* interview_trie.json */; };
-		BB1100000000000000000004 /* interview_graph.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000014 /* interview_graph.json */; };
-		BB1100000000000000000005 /* interview_binary_search.json in Resources */ = {isa = PBXBuildFile; fileRef = BB1100000000000000000015 /* interview_binary_search.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +82,7 @@
 		1E1BA862C29816594FBAE8DB /* StudySessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySessionView.swift; sourceTree = "<group>"; };
 		3991F23819AA77801F0E1545 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		3BBAEC998530E993EF18BBD6 /* DeckImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckImportService.swift; sourceTree = "<group>"; };
+		KC0000000000000000000002 /* KeychainBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainBackupService.swift; sourceTree = "<group>"; };
 		3E5607348670CF27AD2ED4E2 /* ConfidenceSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceSelectorView.swift; sourceTree = "<group>"; };
 		441C877AA3006B78CDA325F7 /* SynapseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SynapseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4424FC10E236F5A12A424E25 /* MasteryRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryRingView.swift; sourceTree = "<group>"; };
@@ -105,10 +107,16 @@
 		A3661A396C1E6F43E1304F85 /* Synapse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Synapse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7C88E3966BCF739EA2C5AB8 /* DifficultyBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifficultyBadge.swift; sourceTree = "<group>"; };
 		A95FD509540C371D06021F7F /* DTOMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOMapperTests.swift; sourceTree = "<group>"; };
+		AA1122334455667788990022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ABAD5E9D108BAF0CEFC4E9AD /* SessionCompleteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCompleteView.swift; sourceTree = "<group>"; };
 		B2701B1F2B719AC7B8DC20C9 /* ddia_chapter5_replication.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ddia_chapter5_replication.json; sourceTree = "<group>"; };
 		B2701B1F2B719AC7B8DC20CA /* ddia_chapter5_replication_v3.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ddia_chapter5_replication_v3.json; sourceTree = "<group>"; };
 		B2701B1F2B719AC7B8DC20CB /* ddia_chapter6_partitioning.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ddia_chapter6_partitioning.json; sourceTree = "<group>"; };
+		BB1100000000000000000011 /* interview_linked_list.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_linked_list.json; sourceTree = "<group>"; };
+		BB1100000000000000000012 /* interview_binary_tree.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_binary_tree.json; sourceTree = "<group>"; };
+		BB1100000000000000000013 /* interview_trie.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_trie.json; sourceTree = "<group>"; };
+		BB1100000000000000000014 /* interview_graph.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_graph.json; sourceTree = "<group>"; };
+		BB1100000000000000000015 /* interview_binary_search.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_binary_search.json; sourceTree = "<group>"; };
 		C7D6E772130B38A748B89AF0 /* Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenario.swift; sourceTree = "<group>"; };
 		C7EEA880093105A0DAC1ED04 /* Deck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deck.swift; sourceTree = "<group>"; };
 		D0ECC0830207FFB25A259ABD /* DeckRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckRowView.swift; sourceTree = "<group>"; };
@@ -124,12 +132,6 @@
 		F38705584FA861CF250B53D2 /* WeakAreasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeakAreasView.swift; sourceTree = "<group>"; };
 		F645548CF3D6483384DE2DB0 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		FB29A623BE70F471C1A23A43 /* TagView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagView.swift; sourceTree = "<group>"; };
-		AA1122334455667788990022 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		BB1100000000000000000011 /* interview_linked_list.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_linked_list.json; sourceTree = "<group>"; };
-		BB1100000000000000000012 /* interview_binary_tree.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_binary_tree.json; sourceTree = "<group>"; };
-		BB1100000000000000000013 /* interview_trie.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_trie.json; sourceTree = "<group>"; };
-		BB1100000000000000000014 /* interview_graph.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_graph.json; sourceTree = "<group>"; };
-		BB1100000000000000000015 /* interview_binary_search.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = interview_binary_search.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -174,6 +176,7 @@
 			isa = PBXGroup;
 			children = (
 				3BBAEC998530E993EF18BBD6 /* DeckImportService.swift */,
+				KC0000000000000000000002 /* KeychainBackupService.swift */,
 				00EC2F567E2911DA7FC81220 /* SpacedRepetitionEngine.swift */,
 				5FA9B4467B89A46CB8AA3A9A /* StatisticsService.swift */,
 				67222FB2DDAA6A1F986F48BD /* StudySessionManager.swift */,
@@ -475,6 +478,7 @@
 				A135356C42E6EB99B9FB513E /* StatsView.swift in Sources */,
 				DB74A1E11EE6AEDC254D6CEE /* WeakAreasView.swift in Sources */,
 				86E521562F6EF13A0845CCEB /* DeckImportService.swift in Sources */,
+				KC0000000000000000000001 /* KeychainBackupService.swift in Sources */,
 				D975E7BF868A63616B78CB51 /* SpacedRepetitionEngine.swift in Sources */,
 				DAAAB6DB18DC67EEE30B25D4 /* StatisticsService.swift in Sources */,
 				DD56E86C4DA62685537F6B6B /* StudySessionManager.swift in Sources */,
@@ -557,7 +561,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.synapse.app;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.synapse.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -586,7 +590,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.synapse.app;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.synapse.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

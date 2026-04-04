@@ -22,6 +22,7 @@ struct SynapseApp: App {
         }
     }
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isImporting = true
 
     var body: some Scene {
@@ -37,7 +38,7 @@ struct SynapseApp: App {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemBackground))
                 .task {
-                    await autoImportSampleDeckIfNeeded()
+                    await importAndRestore()
                     isImporting = false
                 }
             } else {
@@ -45,10 +46,15 @@ struct SynapseApp: App {
             }
         }
         .modelContainer(modelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                KeychainBackupService.backupProgress(context: modelContainer.mainContext)
+            }
+        }
     }
 
     @MainActor
-    private func autoImportSampleDeckIfNeeded() async {
+    private func importAndRestore() async {
         let context = modelContainer.mainContext
         let service = DeckImportService(modelContext: context)
 
@@ -68,7 +74,7 @@ struct SynapseApp: App {
         let descriptor = FetchDescriptor<Deck>()
         let existingIDs = Set((try? context.fetch(descriptor))?.map(\.id) ?? [])
 
-        // Pre-load all JSON data off the main thread
+        // Pre-load all bundled JSON data off the main thread
         let deckData: [(String, Data)] = await Task.detached {
             bundledDecks.compactMap { name in
                 guard let url = Bundle.main.url(forResource: name, withExtension: "json"),
@@ -77,11 +83,43 @@ struct SynapseApp: App {
             }
         }.value
 
-        // Parse and import on main context (required by SwiftData)
+        // Import bundled decks
         for (_, data) in deckData {
             guard let result = try? service.parseJSON(data) else { continue }
             if let deckId = result.deck.id, existingIDs.contains(deckId) { continue }
             _ = try? service.importDeck(result.deck, checkDuplicate: false)
+        }
+
+        // Restore user-imported decks from Keychain backup
+        let updatedIDs = Set((try? context.fetch(descriptor))?.map(\.id) ?? [])
+        for dto in KeychainBackupService.restoreDecks() {
+            guard let deckId = dto.id, !updatedIDs.contains(deckId) else { continue }
+            _ = try? service.importDeck(dto, checkDuplicate: false)
+        }
+
+        // Restore study progress from Keychain backup
+        let progressBackups = KeychainBackupService.restoreProgress()
+        if !progressBackups.isEmpty {
+            let backupByScenario = Dictionary(progressBackups.map { ($0.scenarioID, $0) },
+                                              uniquingKeysWith: { _, last in last })
+            let scenarioDescriptor = FetchDescriptor<Scenario>()
+            if let scenarios = try? context.fetch(scenarioDescriptor) {
+                for scenario in scenarios {
+                    guard let backup = backupByScenario[scenario.id],
+                          let progress = scenario.userProgress,
+                          progress.totalAttempts == 0 else { continue }
+                    progress.easinessFactor = backup.easinessFactor
+                    progress.interval = backup.interval
+                    progress.repetitions = backup.repetitions
+                    progress.nextReviewDate = backup.nextReviewDate
+                    progress.lastReviewDate = backup.lastReviewDate
+                    progress.totalAttempts = backup.totalAttempts
+                    progress.correctAttempts = backup.correctAttempts
+                    progress.lastConfidence = backup.lastConfidence
+                    progress.masteryScore = backup.masteryScore
+                }
+                try? context.save()
+            }
         }
     }
 }

@@ -40,6 +40,7 @@ struct DeckLibraryView: View {
             ) {
                 Button("Delete", role: .destructive) {
                     if let deck = deckToDelete {
+                        KeychainBackupService.removeDeckBackup(deckID: deck.id)
                         modelContext.delete(deck)
                         try? modelContext.save()
                     }

@@ -161,6 +161,7 @@ struct ImportView: View {
         let service = DeckImportService(modelContext: modelContext)
         do {
             _ = try service.importDeck(dto)
+            KeychainBackupService.backupDeck(dto)
             showPreview = false
             showSuccess = true
             jsonText = ""
