@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+  href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,800;1,9..144,300;1,9..144,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@500&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 800px; }
+  body {
+    font-family: 'Instrument Sans', system-ui, sans-serif;
+    color: #1E1733;
+    background:
+      radial-gradient(900px 460px at 18% -8%, rgba(124,58,237,0.18), transparent),
+      radial-gradient(700px 340px at 92% 8%, rgba(6,182,212,0.12), transparent),
+      #FAF7FF;
+    overflow: hidden;
+    position: relative;
+  }
+  .wrap {
+    padding: 56px 64px;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    align-items: stretch;
+  }
+  .left { display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-mark {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(76,29,149,0.30);
+  }
+  .brand-name {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 34px;
+    letter-spacing: -0.02em;
+    color: #0E0A1F;
+  }
+  .chips { display: flex; gap: 10px; margin-top: 28px; flex-wrap: wrap; }
+  .chip {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #5B21B6;
+    background: white;
+    border: 1px solid #C7B6F5;
+    border-radius: 999px;
+    padding: 7px 13px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 72px;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin-top: 32px;
+    color: #0E0A1F;
+  }
+  h1 .accent { color: #5B21B6; font-style: italic; }
+  .lede {
+    font-size: 19px;
+    line-height: 1.5;
+    color: #635A7A;
+    margin-top: 22px;
+    max-width: 540px;
+  }
+  .stats-row {
+    display: flex; gap: 36px; margin-top: 30px;
+  }
+  .stat .n {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 30px;
+    color: #5B21B6;
+    line-height: 1;
+  }
+  .stat .l {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #635A7A;
+    margin-top: 6px;
+  }
+  .url {
+    margin-top: auto;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 15px;
+    color: #5B21B6;
+    font-weight: 500;
+  }
+  .right {
+    position: relative;
+  }
+  .phone {
+    position: absolute;
+    width: 230px;
+    background: #0E0A1F;
+    border-radius: 38px;
+    padding: 7px;
+    box-shadow: 0 32px 80px rgba(30,23,51,0.28), 0 8px 24px rgba(30,23,51,0.12);
+  }
+  .phone-screen {
+    border-radius: 32px;
+    overflow: hidden;
+    background: white;
+    aspect-ratio: 9 / 19.5;
+  }
+  .phone-screen img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+  .phone-1 { top: 30px; right: 240px; transform: rotate(-5deg); z-index: 1; }
+  .phone-2 { top: 0; right: 50px; transform: rotate(2deg); z-index: 3; }
+  .phone-3 { top: 220px; right: 150px; transform: rotate(-1deg); z-index: 2; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="left">
+      <div class="brand">
+        <img class="brand-mark" src="file:///tmp/synapse_og_assets/app_icon.png" alt="" />
+        <div class="brand-name">Synapse</div>
+      </div>
+      <div class="chips">
+        <span class="chip">iOS</span>
+        <span class="chip">Offline-first</span>
+        <span class="chip">Open source</span>
+      </div>
+      <h1>
+        Spaced repetition<br />
+        for <span class="accent">judgment</span>.
+      </h1>
+      <p class="lede">
+        Scenario-based flashcards that test engineering tradeoffs, not trivia.
+        SM-2 scheduling tuned for decisions. Turn any book, video, or topic
+        into a deck via an LLM prompt.
+      </p>
+      <div class="stats-row">
+        <div class="stat">
+          <div class="n">220+</div>
+          <div class="l">scenarios</div>
+        </div>
+        <div class="stat">
+          <div class="n">SM-2</div>
+          <div class="l">scheduling</div>
+        </div>
+        <div class="stat">
+          <div class="n">1 min</div>
+          <div class="l">to build a deck</div>
+        </div>
+      </div>
+      <div class="url">synapse.loukik.dev</div>
+    </div>
+
+    <div class="right">
+      <div class="phone phone-1">
+        <div class="phone-screen">
+          <img src="file:///tmp/synapse_og_assets/01_dashboard.png" alt="" />
+        </div>
+      </div>
+      <div class="phone phone-3">
+        <div class="phone-screen">
+          <img src="file:///tmp/synapse_og_assets/05_feedback.png" alt="" />
+        </div>
+      </div>
+      <div class="phone phone-2">
+        <div class="phone-screen">
+          <img src="file:///tmp/synapse_og_assets/03_study.png" alt="" />
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
